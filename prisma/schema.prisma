@@ -1,0 +1,88 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Rol {
+  SOCIO
+  ADMIN
+}
+
+enum EstadoPago {
+  AL_DIA
+  VENCIDO
+}
+
+enum MetodoPago {
+  MERCADO_PAGO
+  EFECTIVO
+}
+
+enum GrupoMuscular {
+  PECHO
+  ESPALDA
+  PIERNAS
+  HOMBRO
+  BRAZO
+  CORE
+}
+
+model Usuario {
+  id            String     @id @default(uuid())
+  dni           String     @unique
+  nombre        String
+  email         String?    @unique
+  passwordHash  String
+  rol           Rol        @default(SOCIO)
+  creadoEn      DateTime   @default(now())
+
+  pagos         Pago[]
+  rutina        Rutina?
+  estadoPago    EstadoPago @default(VENCIDO)
+  vencimiento   DateTime?
+}
+
+model Pago {
+  id          String     @id @default(uuid())
+  usuario     Usuario    @relation(fields: [usuarioId], references: [id])
+  usuarioId   String
+  monto       Decimal
+  metodo      MetodoPago
+  periodo     String     // "2026-09"
+  pagadoEn    DateTime   @default(now())
+  registradoPor String?  // id de admin si fue carga manual en efectivo
+}
+
+model Ejercicio {
+  id          String        @id @default(uuid())
+  nombre      String
+  grupo       GrupoMuscular
+  descripcion String
+  videoUrl    String?
+
+  enRutinas   RutinaEjercicio[]
+}
+
+model Rutina {
+  id          String            @id @default(uuid())
+  usuario     Usuario           @relation(fields: [usuarioId], references: [id])
+  usuarioId   String            @unique
+  actualizadaEn DateTime        @updatedAt
+
+  ejercicios  RutinaEjercicio[]
+}
+
+model RutinaEjercicio {
+  id           String    @id @default(uuid())
+  rutina       Rutina    @relation(fields: [rutinaId], references: [id])
+  rutinaId     String
+  ejercicio    Ejercicio @relation(fields: [ejercicioId], references: [id])
+  ejercicioId  String
+  series       Int       @default(3)
+  repeticiones Int       @default(12)
+  orden        Int       @default(0)
+}
