@@ -27,62 +27,50 @@ enum GrupoMuscular {
   ESPALDA
   PIERNAS
   HOMBRO
-  BRAZO
-  CORE
+  BICEPS
+  TRICEPS
+  ABDOMINALES
 }
 
 model Usuario {
-  id            String     @id @default(uuid())
-  dni           String     @unique
-  nombre        String
-  email         String?    @unique
-  passwordHash  String
-  rol           Rol        @default(SOCIO)
-  creadoEn      DateTime   @default(now())
-
-  pagos         Pago[]
-  rutina        Rutina?
-  estadoPago    EstadoPago @default(VENCIDO)
-  vencimiento   DateTime?
-}
-
-model Pago {
-  id          String     @id @default(uuid())
-  usuario     Usuario    @relation(fields: [usuarioId], references: [id])
-  usuarioId   String
-  monto       Decimal
-  metodo      MetodoPago
-  periodo     String     // "2026-09"
-  pagadoEn    DateTime   @default(now())
-  registradoPor String?  // id de admin si fue carga manual en efectivo
+  id           String     @id @default(uuid())
+  dni          String     @unique
+  nombre       String
+  email        String?
+  passwordHash String
+  rol          Rol        @default(SOCIO)
+  creadoEn     DateTime   @default(now())
+  estadoPago   EstadoPago @default(AL_DIA)
+  vencimiento  DateTime?
+  rutina       Rutina?
 }
 
 model Ejercicio {
-  id          String        @id @default(uuid())
-  nombre      String
-  grupo       GrupoMuscular
-  descripcion String
-  videoUrl    String?
-
-  enRutinas   RutinaEjercicio[]
+  id            String            @id @default(uuid())
+  nombre        String
+  grupoMuscular GrupoMuscular
+  descripcion   String?
+  imagenUrl     String?
+  rutinas       RutinaEjercicio[]
 }
 
 model Rutina {
-  id          String            @id @default(uuid())
-  usuario     Usuario           @relation(fields: [usuarioId], references: [id])
-  usuarioId   String            @unique
-  actualizadaEn DateTime        @updatedAt
-
-  ejercicios  RutinaEjercicio[]
+  id         String            @id @default(uuid())
+  nombre     String            @default("Mi Rutina")
+  usuarioId  String            @unique
+  usuario    Usuario           @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  ejercicios RutinaEjercicio[]
+  creadoEn   DateTime          @default(now())
 }
 
 model RutinaEjercicio {
   id           String    @id @default(uuid())
-  rutina       Rutina    @relation(fields: [rutinaId], references: [id])
   rutinaId     String
-  ejercicio    Ejercicio @relation(fields: [ejercicioId], references: [id])
+  rutina       Rutina    @relation(fields: [rutinaId], references: [id], onDelete: Cascade)
   ejercicioId  String
-  series       Int       @default(3)
-  repeticiones Int       @default(12)
+  ejercicio    Ejercicio @relation(fields: [ejercicioId], references: [id], onDelete: Cascade)
+  series       Int       @default(4)
+  repeticiones String    @default("10-12")
   orden        Int       @default(0)
+  dia          String?
 }
