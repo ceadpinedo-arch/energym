@@ -23,14 +23,34 @@ router.get('/', requireAuth, async (req, res) => {
         ? rawGrupo.charAt(0).toUpperCase() + rawGrupo.slice(1).toLowerCase()
         : rawGrupo;
 
+      const img = e.imagenUrl || e.imagen || '';
+
       return {
         ...e,
+        // Compatibilidad de IDs para handlers de clic y selección de rutina
+        id: e.id,
+        _id: e.id,
+
+        // Compatibilidad de textos
+        nombre: e.nombre,
+        title: e.nombre,
+        name: e.nombre,
+        descripcion: e.descripcion,
+        description: e.descripcion,
+
+        // Compatibilidad de grupos musculares
         grupo: grupoFormateado,
         grupoM: grupoFormateado,
         grupoMuscular: grupoFormateado,
-        imagen: e.imagenUrl,
-        imagenUrl: e.imagenUrl,
-        url: e.imagenUrl
+        category: grupoFormateado,
+
+        // Compatibilidad de imágenes
+        imagen: img,
+        imagenUrl: img,
+        url: img,
+        foto: img,
+        image: img,
+        src: img
       };
     });
 
