@@ -50,4 +50,40 @@ router.get('/me', requireAuth, async (req, res) => {
   res.json(socio);
 });
 
+
+// Detalle de un socio para el admin: pagos, rutina y asistencia
+router.get('/:id/detalle', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const socio = await prisma.usuario.findUnique({
+      where: { id: req.params.id },
+      select: {
+        id: true, dni: true, nombre: true, email: true,
+        estadoPago: true, vencimiento: true, creadoEn: true,
+        pagos: {
+          orderBy: { pagadoEn: 'desc' },
+          take: 12,
+          select: { id: true, monto: true, periodo: true, metodo: true, pagadoEn: true },
+        },
+        rutina: {
+          include: {
+            ejercicios: {
+              orderBy: { orden: 'asc' },
+              include: { ejercicio: { select: { id: true, nombre: true, grupoMuscular: true, imagenUrl: true } } },
+            },
+          },
+        },
+      },
+    });
+
+    if (!socio) return res.status(404).json({ error: 'Socio no encontrado' });
+
+    const totalAsistencias = await prisma.asistencia.count({ where: { usuarioId: req.params.id } });
+
+    res.json({ ...socio, totalAsistencias });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al obtener el detalle del socio' });
+  }
+});
+
 export default router;
