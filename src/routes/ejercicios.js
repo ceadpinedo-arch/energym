@@ -6,12 +6,18 @@ const router = Router();
 
 router.get('/', requireAuth, async (req, res) => {
   try {
-    const { grupo, grupoM, grupoMuscular } = req.query;
+    const { grupo, grupoM, grupoMuscular, ids, id } = req.query;
     const targetGrupo = grupo || grupoM || grupoMuscular;
 
     const where = {};
 
-    if (targetGrupo && targetGrupo.toLowerCase() !== 'todos') {
+    const rawIds = ids || id;
+    if (rawIds) {
+      const idArray = Array.isArray(rawIds) 
+        ? rawIds 
+        : String(rawIds).split(',').map(s => s.trim());
+      where.id = { in: idArray };
+    } else if (targetGrupo && targetGrupo.toLowerCase() !== 'todos') {
       where.grupoMuscular = targetGrupo.toUpperCase();
     }
 
@@ -23,34 +29,43 @@ router.get('/', requireAuth, async (req, res) => {
         ? rawGrupo.charAt(0).toUpperCase() + rawGrupo.slice(1).toLowerCase()
         : rawGrupo;
 
-      const img = e.imagenUrl || e.imagen || '';
+      const imgUrl = e.imagenUrl || e.imagen || '';
+      const idString = String(e.id);
+      const imgObject = imgUrl ? { uri: imgUrl } : null;
 
       return {
         ...e,
-        // Compatibilidad de IDs para handlers de clic y selección de rutina
-        id: e.id,
-        _id: e.id,
+        // Identificadores
+        id: idString,
+        _id: idString,
+        key: idString,
+        id_ejercicio: idString,
 
-        // Compatibilidad de textos
+        // Textos
         nombre: e.nombre,
         title: e.nombre,
         name: e.nombre,
         descripcion: e.descripcion,
         description: e.descripcion,
 
-        // Compatibilidad de grupos musculares
+        // Categorías
         grupo: grupoFormateado,
         grupoM: grupoFormateado,
         grupoMuscular: grupoFormateado,
-        category: grupoFormateado,
 
-        // Compatibilidad de imágenes
-        imagen: img,
-        imagenUrl: img,
-        url: img,
-        foto: img,
-        image: img,
-        src: img
+        // Imágenes en formato Texto (String)
+        imagen: imgUrl,
+        imagenUrl: imgUrl,
+        url: imgUrl,
+        foto: imgUrl,
+        src: imgUrl,
+        uri: imgUrl,
+
+        // Imágenes en formato Objeto React Native ({ uri: '...' })
+        source: imgObject,
+        image: imgObject,
+        cover: imgObject,
+        avatar: imgObject
       };
     });
 

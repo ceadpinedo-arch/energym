@@ -43,6 +43,10 @@ model Usuario {
   estadoPago   EstadoPago @default(AL_DIA)
   vencimiento  DateTime?
   rutina       Rutina?
+  asistencias   Asistencia[]
+  registros      Registro[]
+  pushTokens     PushToken[]
+  pagos          Pago[]
 }
 
 model Ejercicio {
@@ -73,4 +77,47 @@ model RutinaEjercicio {
   repeticiones String    @default("10-12")
   orden        Int       @default(0)
   dia          String?
+}
+
+model Asistencia {
+  id        String   @id @default(uuid())
+  usuarioId String
+  usuario   Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  dia       String
+  creadoEn  DateTime @default(now())
+
+  @@unique([usuarioId, dia])
+}
+
+model Registro {
+  id           String   @id @default(uuid())
+  usuarioId    String
+  usuario      Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  ejercicioId  String
+  dia          String
+  peso         Float
+  series       Int      @default(0)
+  repeticiones Int      @default(0)
+  creadoEn     DateTime @default(now())
+
+  @@unique([usuarioId, ejercicioId, dia])
+}
+
+model PushToken {
+  id        String   @id @default(uuid())
+  usuarioId String
+  usuario   Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  creadoEn  DateTime @default(now())
+}
+
+model Pago {
+  id            String      @id @default(uuid())
+  usuarioId     String
+  usuario       Usuario     @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  monto         Float
+  periodo       String
+  metodo        MetodoPago
+  registradoPor String?
+  pagadoEn      DateTime    @default(now())
 }

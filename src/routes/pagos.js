@@ -65,3 +65,20 @@ router.post('/webhook/mercadopago', async (req, res) => {
 });
 
 export default router;
+
+// Admin: resumen de ingresos del mes
+router.get('/resumen', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const hoy = new Date();
+    const inicioMes = new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth(), 1));
+    const pagos = await prisma.pago.findMany({
+      where: { pagadoEn: { gte: inicioMes } },
+      select: { monto: true },
+    });
+    const totalMes = pagos.reduce((acc, p) => acc + p.monto, 0);
+    res.json({ totalMes, cantidadPagos: pagos.length });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al obtener el resumen' });
+  }
+});
