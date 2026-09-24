@@ -8,6 +8,7 @@ import iaRoutes from './routes/ia.js';
 import asistenciaRoutes from './routes/asistencia.js';
 import entrenosRoutes from './routes/entrenos.js';
 import pushRoutes from './routes/push.js';
+import socioRoutes from './routes/socios.js';
 import pagosRoutes from './routes/pagos.js';
 const app = express();
 
@@ -17,6 +18,7 @@ app.use('/api/ia', iaRoutes);
 app.use('/api/asistencia', asistenciaRoutes);
 app.use('/api/entrenos', entrenosRoutes);
 app.use('/api/push', pushRoutes);
+app.use('/api/socios', socioRoutes);
 app.use('/api/pagos', pagosRoutes);
 // Ruta de estado
 app.get('/', (req, res) => {
