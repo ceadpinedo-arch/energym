@@ -8,7 +8,7 @@ import iaRoutes from './routes/ia.js';
 import asistenciaRoutes from './routes/asistencia.js';
 import entrenosRoutes from './routes/entrenos.js';
 import pushRoutes from './routes/push.js';
-
+import pagosRoutes from './routes/pagos.js';
 const app = express();
 
 app.use(cors());
@@ -17,6 +17,7 @@ app.use('/api/ia', iaRoutes);
 app.use('/api/asistencia', asistenciaRoutes);
 app.use('/api/entrenos', entrenosRoutes);
 app.use('/api/push', pushRoutes);
+app.use('/api/pagos', pagosRoutes);
 // Ruta de estado
 app.get('/', (req, res) => {
   res.send('✅ API Energym funcionando correctamente');
