@@ -104,4 +104,38 @@ router.put('/me', requireAuth, async (req, res) => {
   }
 });
 
+import { requireAdmin } from '../middleware/auth.js';
+
+// PUT /api/rutinas/:usuarioId — admin asigna/reemplaza la rutina de un socio
+router.put('/:usuarioId', requireAuth, requireAdmin, async (req, res) => {
+  const parsed = putSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Datos inválidos' });
+  try {
+    const usuarioId = req.params.usuarioId;
+    const rutina = await prisma.rutina.upsert({
+      where: { usuarioId },
+      update: {},
+      create: { usuarioId },
+    });
+    await prisma.rutinaEjercicio.deleteMany({ where: { rutinaId: rutina.id } });
+    const { items } = parsed.data;
+    if (items.length > 0) {
+      await prisma.rutinaEjercicio.createMany({
+        data: items.map((it, idx) => ({
+          rutinaId: rutina.id,
+          ejercicioId: it.ejercicioId,
+          dia: it.dia || null,
+          series: it.series,
+          repeticiones: it.repeticiones,
+          orden: idx,
+        })),
+      });
+    }
+    res.json({ success: true, message: 'Rutina asignada correctamente', items });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al asignar rutina' });
+  }
+});
+
 export default router;
