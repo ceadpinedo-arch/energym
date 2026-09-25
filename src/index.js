@@ -10,6 +10,7 @@ import entrenosRoutes from './routes/entrenos.js';
 import pushRoutes from './routes/push.js';
 import socioRoutes from './routes/socios.js';
 import pagosRoutes from './routes/pagos.js';
+import gimnasioRoutes from './routes/gimnasio.js';
 const app = express();
 
 app.use(cors());
@@ -20,6 +21,7 @@ app.use('/api/entrenos', entrenosRoutes);
 app.use('/api/push', pushRoutes);
 app.use('/api/socios', socioRoutes);
 app.use('/api/pagos', pagosRoutes);
+app.use('/api/gimnasio', gimnasioRoutes);
 // Ruta de estado
 app.get('/', (req, res) => {
   res.send('✅ API Energym funcionando correctamente');
