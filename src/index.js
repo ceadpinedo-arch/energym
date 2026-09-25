@@ -5,21 +5,20 @@ import authRoutes from './routes/auth.js';
 import ejerciciosRoutes from './routes/ejercicios.js';
 import rutinasRoutes from './routes/rutinas.js';
 import iaRoutes from './routes/ia.js';
-import asistenciaRoutes from './routes/asistencia.js';
 import entrenosRoutes from './routes/entrenos.js';
 import pushRoutes from './routes/push.js';
 import socioRoutes from './routes/socios.js';
+import asistenciaRoutes from './routes/asistencias.js';
 import pagosRoutes from './routes/pagos.js';
 import gimnasioRoutes from './routes/gimnasio.js';
 const app = express();
 
 app.use(cors());
 app.use(express.json());
-app.use('/api/ia', iaRoutes);
-app.use('/api/asistencia', asistenciaRoutes);
 app.use('/api/entrenos', entrenosRoutes);
 app.use('/api/push', pushRoutes);
 app.use('/api/socios', socioRoutes);
+app.use('/api/asistencias', asistenciaRoutes);
 app.use('/api/pagos', pagosRoutes);
 app.use('/api/gimnasio', gimnasioRoutes);
 // Ruta de estado
