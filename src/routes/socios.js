@@ -86,4 +86,40 @@ router.get('/:id/detalle', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
+const editarSchema = z.object({
+  nombre: z.string().min(2).optional(),
+  email: z.string().email().optional().or(z.literal('')),
+});
+
+// Editar datos de un socio (solo admin)
+router.patch('/:id', requireAuth, requireAdmin, async (req, res) => {
+  const parsed = editarSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Datos inválidos' });
+
+  const data = {};
+  if (parsed.data.nombre) data.nombre = parsed.data.nombre;
+  if (parsed.data.email !== undefined) data.email = parsed.data.email || null;
+
+  try {
+    const socio = await prisma.usuario.update({
+      where: { id: req.params.id },
+      data,
+      select: { id: true, dni: true, nombre: true, email: true, estadoPago: true },
+    });
+    res.json(socio);
+  } catch (error) {
+    res.status(404).json({ error: 'Socio no encontrado' });
+  }
+});
+
+// Dar de baja (eliminar) un socio (solo admin)
+router.delete('/:id', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    await prisma.usuario.delete({ where: { id: req.params.id } });
+    res.status(204).end();
+  } catch (error) {
+    res.status(404).json({ error: 'Socio no encontrado' });
+  }
+});
+
 export default router;
