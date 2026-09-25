@@ -32,6 +32,15 @@ enum GrupoMuscular {
   ABDOMINALES
 }
 
+model Gimnasio {
+  id        String    @id @default(uuid())
+  nombre    String    @default("Mi Gimnasio")
+  logoUrl   String?
+  aliasMP   String?
+  creadoEn  DateTime  @default(now())
+  usuarios  Usuario[]
+}
+
 model Usuario {
   id           String     @id @default(uuid())
   dni          String     @unique
@@ -39,6 +48,8 @@ model Usuario {
   email        String?
   passwordHash String
   rol          Rol        @default(SOCIO)
+  gimnasioId    String?
+  gimnasio      Gimnasio?     @relation(fields: [gimnasioId], references: [id])
   creadoEn     DateTime   @default(now())
   estadoPago   EstadoPago @default(AL_DIA)
   vencimiento  DateTime?

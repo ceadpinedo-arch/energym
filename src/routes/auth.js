@@ -16,14 +16,14 @@ router.post('/login', async (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: 'DNI o contraseña inválidos' });
 
   const { dni, password } = parsed.data;
-  const usuario = await prisma.usuario.findUnique({ where: { dni } });
+  const usuario = await prisma.usuario.findUnique({ where: { dni }, include: { gimnasio: true } });
   if (!usuario) return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
 
   const valido = await bcrypt.compare(password, usuario.passwordHash);
   if (!valido) return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
 
   const token = jwt.sign(
-    { id: usuario.id, rol: usuario.rol, nombre: usuario.nombre },
+    { id: usuario.id, rol: usuario.rol, nombre: usuario.nombre, gimnasioId: usuario.gimnasioId },
     process.env.JWT_SECRET,
     { expiresIn: '30d' }
   );
@@ -36,6 +36,7 @@ router.post('/login', async (req, res) => {
       rol: usuario.rol,
       estadoPago: usuario.estadoPago,
       vencimiento: usuario.vencimiento,
+      gimnasio: usuario.gimnasio,
     },
   });
 });
