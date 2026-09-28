@@ -20,6 +20,7 @@ app.use('/api/push', pushRoutes);
 app.use('/api/socios', socioRoutes);
 app.use('/api/asistencias', asistenciaRoutes);
 app.use('/api/asistencia', asistenciaRoutes);
+app.use('/api/ia', iaRoutes);
 app.use('/api/pagos', pagosRoutes);
 app.use('/api/gimnasio', gimnasioRoutes);
 // Ruta de estado
