@@ -33,8 +33,8 @@ async function construirContexto(usuarioId) {
       }),
       prisma.asistencia.findMany({
         where: { usuarioId },
-        select: { dia: true },
-        orderBy: { dia: 'desc' },
+        select: { creadoEn: true },
+        orderBy: { creadoEn: 'desc' },
         take: 60,
       }),
     ]);
@@ -69,10 +69,10 @@ async function construirContexto(usuarioId) {
     }
 
     if (asistencias.length > 0) {
-      const dias = new Set(asistencias.map((a) => a.dia));
+      const dias = new Set(asistencias.map((a) => a.creadoEn.toISOString().slice(0, 10)));
       const hoy = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Argentina/Buenos_Aires' });
       const mes = hoy.slice(0, 7);
-      const visitasMes = asistencias.filter((a) => a.dia.startsWith(mes)).length;
+      const visitasMes = asistencias.filter((a) => a.creadoEn.toISOString().startsWith(mes)).length;
       let cursor = hoy;
       let racha = 0;
       while (dias.has(cursor)) {
