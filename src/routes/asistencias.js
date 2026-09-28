@@ -33,17 +33,4 @@ router.post('/checkin', async (req, res) => {
   res.json({ permitido: true, nombre: usuario.nombre });
 });
 
-// POST /api/asistencia/hoy — el socio logueado en la app escanea el QR fijo de la puerta
-router.post('/hoy', requireAuth, async (req, res) => {
-  const usuarioId = req.usuario.id ?? req.usuario.sub ?? req.usuario.usuarioId;
-  const usuario = await prisma.usuario.findUnique({ where: { id: usuarioId } });
-  if (!usuario) return res.status(404).json({ error: 'Usuario no encontrado' });
-  if (usuario.estadoPago !== 'AL_DIA') {
-    return res.status(403).json({ error: 'Cuota vencida' });
-  }
-  const dia = diaAR();
-  await prisma.asistencia.upsert({ where: { usuarioId_dia: { usuarioId, dia } }, update: {}, create: { usuarioId, dia } });
-  res.json({ ok: true });
-});
-
 export default router;
