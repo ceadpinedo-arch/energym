@@ -96,6 +96,9 @@ model Asistencia {
   usuario   Usuario  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
   creadoEn  DateTime @default(now())
 
+  dia         String
+
+  @@unique([usuarioId, dia])
 }
 
 model Registro {

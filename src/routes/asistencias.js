@@ -5,6 +5,7 @@ import { requireAuth } from '../middleware/auth.js';
 
 const router = Router();
 const prisma = new PrismaClient();
+const diaAR = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' });
 
 // POST /api/asistencias/checkin — el socio se identifica en la puerta y se registra su entrada
 router.post('/checkin', async (req, res) => {
@@ -27,7 +28,8 @@ router.post('/checkin', async (req, res) => {
     return res.json({ permitido: false, motivo: 'Cuota vencida', nombre: usuario.nombre });
   }
 
-  await prisma.asistencia.create({ data: { usuarioId: usuario.id } });
+  const dia = diaAR();
+  await prisma.asistencia.upsert({ where: { usuarioId_dia: { usuarioId: usuario.id, dia } }, update: {}, create: { usuarioId: usuario.id, dia } });
   res.json({ permitido: true, nombre: usuario.nombre });
 });
 
@@ -39,7 +41,8 @@ router.post('/hoy', requireAuth, async (req, res) => {
   if (usuario.estadoPago !== 'AL_DIA') {
     return res.status(403).json({ error: 'Cuota vencida' });
   }
-  await prisma.asistencia.create({ data: { usuarioId } });
+  const dia = diaAR();
+  await prisma.asistencia.upsert({ where: { usuarioId_dia: { usuarioId, dia } }, update: {}, create: { usuarioId, dia } });
   res.json({ ok: true });
 });
 
