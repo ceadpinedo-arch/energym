@@ -17,6 +17,7 @@ router.get('/me', requireAuth, async (req, res) => {
 const updateSchema = z.object({
   nombre: z.string().min(1).max(60).optional(),
   logoBase64: z.string().optional(),
+  cuota: z.number().positive().max(100000000).optional(),
 });
 
 router.patch('/me', requireAuth, requireAdmin, async (req, res) => {
@@ -29,6 +30,7 @@ router.patch('/me', requireAuth, requireAdmin, async (req, res) => {
   const data = {};
   if (parsed.data.nombre) data.nombre = parsed.data.nombre;
   if (parsed.data.logoBase64) data.logoUrl = parsed.data.logoBase64;
+  if (parsed.data.cuota) data.cuota = parsed.data.cuota;
 
   const gimnasio = await prisma.gimnasio.update({
     where: { id: usuario.gimnasioId },

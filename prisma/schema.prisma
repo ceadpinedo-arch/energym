@@ -39,6 +39,7 @@ model Gimnasio {
   aliasMP   String?
   creadoEn  DateTime  @default(now())
   usuarios  Usuario[]
+  cuota       Float    @default(15000)
 }
 
 model Usuario {

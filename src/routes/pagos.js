@@ -56,14 +56,17 @@ router.post('/efectivo', requireAuth, requireAdmin, async (req, res) => {
 // Crear link de pago único para un socio (Checkout Pro)
 const crearPreferenciaSchema = z.object({
   usuarioId: z.string().uuid(),
-  monto: z.number().positive(),
+  monto: z.number().positive().optional(),
 });
 
 router.post('/crear-preferencia', requireAuth, async (req, res) => {
   const parsed = crearPreferenciaSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Datos inválidos' });
 
-  const { usuarioId, monto } = parsed.data;
+  const { usuarioId } = parsed.data;
+    const socioMP = await prisma.usuario.findUnique({ where: { id: usuarioId }, include: { gimnasio: true } });
+    const monto = socioMP?.gimnasio?.cuota ?? parsed.data.monto;
+    if (!monto) return res.status(400).json({ error: 'Cuota no configurada' });
 
   if (req.usuario.rol !== 'ADMIN' && req.usuario.id !== usuarioId) {
     return res.status(403).json({ error: 'No autorizado' });
