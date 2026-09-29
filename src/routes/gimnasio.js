@@ -14,10 +14,18 @@ router.get('/me', requireAuth, async (req, res) => {
   res.json(usuario.gimnasio);
 });
 
+const limpiarWhatsapp = (v) => String(v).replace(/\D/g, '');
+const limpiarInstagram = (v) => {
+  const s = String(v).trim().replace(/^https?:\/\/(www\.)?instagram\.com\//i, '');
+  return s.split(/[/?#]/)[0].replace(/^@/, '');
+};
+
 const updateSchema = z.object({
   nombre: z.string().min(1).max(60).optional(),
   logoBase64: z.string().optional(),
   cuota: z.number().positive().max(100000000).optional(),
+  whatsapp: z.string().max(200).optional(),
+  instagram: z.string().max(200).optional(),
 });
 
 router.patch('/me', requireAuth, requireAdmin, async (req, res) => {
@@ -31,6 +39,8 @@ router.patch('/me', requireAuth, requireAdmin, async (req, res) => {
   if (parsed.data.nombre) data.nombre = parsed.data.nombre;
   if (parsed.data.logoBase64) data.logoUrl = parsed.data.logoBase64;
   if (parsed.data.cuota) data.cuota = parsed.data.cuota;
+  if (parsed.data.whatsapp !== undefined) data.whatsapp = limpiarWhatsapp(parsed.data.whatsapp) || null;
+  if (parsed.data.instagram !== undefined) data.instagram = limpiarInstagram(parsed.data.instagram) || null;
 
   const gimnasio = await prisma.gimnasio.update({
     where: { id: usuario.gimnasioId },

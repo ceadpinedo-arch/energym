@@ -40,6 +40,8 @@ model Gimnasio {
   creadoEn  DateTime  @default(now())
   usuarios  Usuario[]
   cuota       Float    @default(15000)
+  whatsapp  String?
+  instagram String?
 }
 
 model Usuario {
