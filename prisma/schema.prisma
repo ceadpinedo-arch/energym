@@ -42,6 +42,8 @@ model Gimnasio {
   cuota       Float    @default(15000)
   whatsapp  String?
   instagram String?
+  alias     String?
+  cbu       String?
 }
 
 model Usuario {

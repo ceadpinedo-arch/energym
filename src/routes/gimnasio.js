@@ -20,12 +20,17 @@ const limpiarInstagram = (v) => {
   return s.split(/[/?#]/)[0].replace(/^@/, '');
 };
 
+const limpiarAlias = (v) => String(v).trim().replace(/\s+/g, '');
+const limpiarCbu = (v) => String(v).replace(/\D/g, '');
+
 const updateSchema = z.object({
   nombre: z.string().min(1).max(60).optional(),
   logoBase64: z.string().optional(),
   cuota: z.number().positive().max(100000000).optional(),
   whatsapp: z.string().max(200).optional(),
   instagram: z.string().max(200).optional(),
+  alias: z.string().max(80).optional(),
+  cbu: z.string().max(60).optional(),
 });
 
 router.patch('/me', requireAuth, requireAdmin, async (req, res) => {
@@ -41,6 +46,12 @@ router.patch('/me', requireAuth, requireAdmin, async (req, res) => {
   if (parsed.data.cuota) data.cuota = parsed.data.cuota;
   if (parsed.data.whatsapp !== undefined) data.whatsapp = limpiarWhatsapp(parsed.data.whatsapp) || null;
   if (parsed.data.instagram !== undefined) data.instagram = limpiarInstagram(parsed.data.instagram) || null;
+  if (parsed.data.alias !== undefined) data.alias = limpiarAlias(parsed.data.alias) || null;
+  if (parsed.data.cbu !== undefined) {
+    const cbuLimpio = limpiarCbu(parsed.data.cbu);
+    if (cbuLimpio && cbuLimpio.length !== 22) return res.status(400).json({ error: 'El CBU debe tener 22 dígitos' });
+    data.cbu = cbuLimpio || null;
+  }
 
   const gimnasio = await prisma.gimnasio.update({
     where: { id: usuario.gimnasioId },
