@@ -20,7 +20,7 @@ const altaSchema = z.object({
   dni: z.string().min(6),
   nombre: z.string().min(2),
   password: z.string().min(4),
-  email: z.string().email().optional(),
+  email: z.preprocess(v => (v === '' ? undefined : v), z.string().email().optional()),
 });
 
 // Dar de alta un socio nuevo (solo admin)
