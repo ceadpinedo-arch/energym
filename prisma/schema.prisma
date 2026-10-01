@@ -63,6 +63,7 @@ model Usuario {
   registros      Registro[]
   pushTokens     PushToken[]
   pagos          Pago[]
+  telefono     String?
 }
 
 model Ejercicio {

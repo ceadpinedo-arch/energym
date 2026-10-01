@@ -21,6 +21,7 @@ const altaSchema = z.object({
   nombre: z.string().min(2),
   password: z.string().min(4),
   email: z.preprocess(v => (v === '' ? undefined : v), z.string().email().optional()),
+  telefono: z.preprocess(v => (v === '' ? undefined : v), z.string().max(25).optional()),
 });
 
 // Dar de alta un socio nuevo (solo admin)
@@ -28,14 +29,14 @@ router.post('/', requireAuth, requireAdmin, async (req, res) => {
   const parsed = altaSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Datos incompletos' });
 
-  const { dni, nombre, password, email } = parsed.data;
+  const { dni, nombre, password, email, telefono } = parsed.data;
   const passwordHash = await bcrypt.hash(password, 10);
 
   const existente = await prisma.usuario.findUnique({ where: { dni } });
   if (existente) return res.status(409).json({ error: 'Ya existe un socio con ese DNI' });
 
   const socio = await prisma.usuario.create({
-    data: { dni, nombre, email, passwordHash, rol: 'SOCIO' },
+    data: { dni, nombre, email, telefono, passwordHash, rol: 'SOCIO' },
   });
 
   res.status(201).json({ id: socio.id, dni: socio.dni, nombre: socio.nombre });
@@ -57,7 +58,7 @@ router.get('/:id/detalle', requireAuth, requireAdmin, async (req, res) => {
     const socio = await prisma.usuario.findUnique({
       where: { id: req.params.id },
       select: {
-        id: true, dni: true, nombre: true, email: true,
+        id: true, dni: true, nombre: true, email: true, telefono: true,
         estadoPago: true, vencimiento: true, creadoEn: true,
         pagos: {
           orderBy: { pagadoEn: 'desc' },
@@ -89,6 +90,7 @@ router.get('/:id/detalle', requireAuth, requireAdmin, async (req, res) => {
 const editarSchema = z.object({
   nombre: z.string().min(2).optional(),
   email: z.string().email().optional().or(z.literal('')),
+  telefono: z.string().max(25).optional(),
 });
 
 // Editar datos de un socio (solo admin)
@@ -99,12 +101,13 @@ router.patch('/:id', requireAuth, requireAdmin, async (req, res) => {
   const data = {};
   if (parsed.data.nombre) data.nombre = parsed.data.nombre;
   if (parsed.data.email !== undefined) data.email = parsed.data.email || null;
+  if (parsed.data.telefono !== undefined) data.telefono = parsed.data.telefono.trim() || null;
 
   try {
     const socio = await prisma.usuario.update({
       where: { id: req.params.id },
       data,
-      select: { id: true, dni: true, nombre: true, email: true, estadoPago: true },
+      select: { id: true, dni: true, nombre: true, email: true, telefono: true, estadoPago: true },
     });
     res.json(socio);
   } catch (error) {

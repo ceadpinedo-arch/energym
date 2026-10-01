@@ -144,20 +144,111 @@ router.post('/webhook/mercadopago', async (req, res) => {
   }
 });
 
-// Admin: resumen de ingresos del mes
+const ZONA_AR = 'America/Argentina/Buenos_Aires';
+const fechaAR = (d = new Date()) => d.toLocaleDateString('en-CA', { timeZone: ZONA_AR });
+const inicioMesAR = (anio, mes) => new Date(anio + '-' + String(mes).padStart(2, '0') + '-01T00:00:00-03:00');
+
+// Admin: resumen del gimnasio (tarjetas, vencimientos, asistencia y cobros)
 router.get('/resumen', requireAuth, requireAdmin, async (req, res) => {
   try {
-    const hoy = new Date();
-    const inicioMes = new Date(Date.UTC(hoy.getUTCFullYear(), hoy.getUTCMonth(), 1));
-    const pagos = await prisma.pago.findMany({
-      where: { pagadoEn: { gte: inicioMes } },
-      select: { monto: true },
+    const admin = await prisma.usuario.findUnique({ where: { id: req.usuario.id }, select: { gimnasioId: true } });
+    const gimnasioId = admin?.gimnasioId || null;
+    const delGimnasio = gimnasioId ? { gimnasioId } : {};
+    const pagoWhere = gimnasioId ? { usuario: { gimnasioId } } : {};
+
+    const ahora = new Date();
+    const hoy = fechaAR(ahora);
+    const [anio, mes] = hoy.split('-').map(Number);
+    const inicioMes = inicioMesAR(anio, mes);
+    const inicioMesPrev = mes === 1 ? inicioMesAR(anio - 1, 12) : inicioMesAR(anio, mes - 1);
+    const dias = Array.from({ length: 7 }, (_, i) => fechaAR(new Date(ahora.getTime() - (6 - i) * 86400000)));
+    const en7 = new Date(ahora.getTime() + 7 * 86400000);
+    const socio = { ...delGimnasio, rol: 'SOCIO' };
+
+    const [pagosMes, pagosPrev, sociosActivos, vencidos, nuevosMes, entradasHoy,
+      porVencer, vencidosLista, asistSemana, porMetodo, ultimosPagos] = await Promise.all([
+      prisma.pago.aggregate({ where: { ...pagoWhere, pagadoEn: { gte: inicioMes } }, _sum: { monto: true }, _count: { _all: true } }),
+      prisma.pago.aggregate({ where: { ...pagoWhere, pagadoEn: { gte: inicioMesPrev, lt: inicioMes } }, _sum: { monto: true } }),
+      prisma.usuario.count({ where: socio }),
+      prisma.usuario.count({ where: { ...socio, estadoPago: 'VENCIDO' } }),
+      prisma.usuario.count({ where: { ...socio, creadoEn: { gte: inicioMes } } }),
+      prisma.asistencia.count({ where: { dia: hoy, usuario: delGimnasio } }),
+      prisma.usuario.findMany({
+        where: { ...socio, estadoPago: { not: 'VENCIDO' }, vencimiento: { gte: ahora, lte: en7 } },
+        orderBy: { vencimiento: 'asc' }, take: 10,
+        select: { id: true, nombre: true, dni: true, vencimiento: true },
+      }),
+      prisma.usuario.findMany({
+        where: { ...socio, estadoPago: 'VENCIDO' },
+        orderBy: { vencimiento: 'asc' }, take: 10,
+        select: { id: true, nombre: true, dni: true, vencimiento: true },
+      }),
+      prisma.asistencia.groupBy({ by: ['dia'], where: { dia: { gte: dias[0] }, usuario: delGimnasio }, _count: { _all: true } }),
+      prisma.pago.groupBy({ by: ['metodo'], where: { ...pagoWhere, pagadoEn: { gte: inicioMes } }, _sum: { monto: true }, _count: { _all: true } }),
+      prisma.pago.findMany({
+        where: pagoWhere, orderBy: { pagadoEn: 'desc' }, take: 5,
+        select: { id: true, monto: true, metodo: true, pagadoEn: true, usuario: { select: { nombre: true } } },
+      }),
+    ]);
+
+    const conteoPorDia = Object.fromEntries(asistSemana.map((a) => [a.dia, a._count._all]));
+    res.json({
+      totalMes: pagosMes._sum.monto || 0,
+      cantidadPagos: pagosMes._count._all,
+      totalMesAnterior: pagosPrev._sum.monto || 0,
+      sociosActivos, vencidos, nuevosMes, entradasHoy,
+      porVencer, vencidosLista,
+      asistenciaSemana: dias.map((dia) => ({ dia, cantidad: conteoPorDia[dia] || 0 })),
+      porMetodo: porMetodo.map((m) => ({ metodo: m.metodo, total: m._sum.monto || 0, cantidad: m._count._all })),
+      ultimosPagos,
     });
-    const totalMes = pagos.reduce((acc, p) => acc + p.monto, 0);
-    res.json({ totalMes, cantidadPagos: pagos.length });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Error al obtener el resumen' });
+  }
+});
+
+// Admin: historial de pagos del mes, con filtro por método
+router.get('/historial', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const admin = await prisma.usuario.findUnique({ where: { id: req.usuario.id }, select: { gimnasioId: true } });
+    const gimnasioId = admin?.gimnasioId || null;
+    const pedido = typeof req.query.mes === 'string' ? req.query.mes : '';
+    const mes = /^\d{4}-(0[1-9]|1[0-2])$/.test(pedido) ? pedido : fechaAR().slice(0, 7);
+    const [anio, m] = mes.split('-').map(Number);
+    const desde = inicioMesAR(anio, m);
+    const hasta = m === 12 ? inicioMesAR(anio + 1, 1) : inicioMesAR(anio, m + 1);
+    const where = { pagadoEn: { gte: desde, lt: hasta } };
+    if (gimnasioId) where.usuario = { gimnasioId };
+    if (['EFECTIVO', 'MERCADO_PAGO'].includes(req.query.metodo)) where.metodo = req.query.metodo;
+    const pagos = await prisma.pago.findMany({
+      where, orderBy: { pagadoEn: 'desc' }, take: 500,
+      select: { id: true, monto: true, periodo: true, metodo: true, pagadoEn: true, usuario: { select: { nombre: true, dni: true } } },
+    });
+    res.json({ mes, pagos, total: pagos.reduce((a, p) => a + p.monto, 0), cantidad: pagos.length });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al obtener el historial' });
+  }
+});
+
+// Admin: socios con la cuota vencida, para recordatorios
+router.get('/morosos', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const admin = await prisma.usuario.findUnique({ where: { id: req.usuario.id }, select: { gimnasioId: true } });
+    const gimnasioId = admin?.gimnasioId || null;
+    const [socios, gimnasio] = await Promise.all([
+      prisma.usuario.findMany({
+        where: { rol: 'SOCIO', estadoPago: 'VENCIDO', ...(gimnasioId ? { gimnasioId } : {}) },
+        orderBy: { vencimiento: 'asc' },
+        select: { id: true, nombre: true, dni: true, telefono: true, vencimiento: true },
+      }),
+      gimnasioId ? prisma.gimnasio.findUnique({ where: { id: gimnasioId }, select: { nombre: true, cuota: true } }) : null,
+    ]);
+    res.json({ socios, gimnasio });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al obtener los morosos' });
   }
 });
 
