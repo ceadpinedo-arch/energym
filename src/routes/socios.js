@@ -35,8 +35,9 @@ router.post('/', requireAuth, requireAdmin, async (req, res) => {
   const existente = await prisma.usuario.findUnique({ where: { dni } });
   if (existente) return res.status(409).json({ error: 'Ya existe un socio con ese DNI' });
 
+  const adminAlta = await prisma.usuario.findUnique({ where: { id: req.usuario.id }, select: { gimnasioId: true } });
   const socio = await prisma.usuario.create({
-    data: { dni, nombre, email, telefono, passwordHash, rol: 'SOCIO' },
+    data: { dni, nombre, email, telefono, passwordHash, rol: 'SOCIO', gimnasioId: adminAlta?.gimnasioId || null },
   });
 
   res.status(201).json({ id: socio.id, dni: socio.dni, nombre: socio.nombre });
@@ -122,6 +123,73 @@ router.delete('/:id', requireAuth, requireAdmin, async (req, res) => {
     res.status(204).end();
   } catch (error) {
     res.status(404).json({ error: 'Socio no encontrado' });
+  }
+});
+
+// Importar socios en lote desde CSV (solo admin)
+const textoOpc = (v) => (v === '' || v === null || v === undefined ? undefined : v);
+const filaImportSchema = z.object({
+  dni: z.string().refine((v) => !/\D/.test(v) && v.length >= 6 && v.length <= 9, 'dni'),
+  nombre: z.string().trim().min(2).max(80),
+  email: z.preprocess(textoOpc, z.string().email().optional()),
+  telefono: z.preprocess(textoOpc, z.string().refine((v) => !/\D/.test(v) && v.length >= 6 && v.length <= 15, 'telefono').optional()),
+  password: z.preprocess(textoOpc, z.string().min(4).max(72).optional()),
+});
+const importarSchema = z.object({
+  socios: z.array(z.any()).min(1).max(300),
+  passwordInicial: z.string().max(72).optional(),
+});
+
+router.post('/importar', requireAuth, requireAdmin, async (req, res) => {
+  const parsed = importarSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: 'Archivo inválido (máximo 300 filas por envío)' });
+  const base = (parsed.data.passwordInicial || '').trim();
+  if (base && base.length < 4) return res.status(400).json({ error: 'La contraseña inicial necesita al menos 4 caracteres' });
+
+  try {
+    const admin = await prisma.usuario.findUnique({ where: { id: req.usuario.id }, select: { gimnasioId: true } });
+    const gimnasioId = admin?.gimnasioId || null;
+
+    const errores = [];
+    const validas = [];
+    const vistos = new Set();
+    parsed.data.socios.forEach((fila, i) => {
+      const r = filaImportSchema.safeParse(fila);
+      if (!r.success) {
+        errores.push({ fila: i + 1, motivo: 'campo inválido: ' + (r.error.issues[0]?.path?.[0] || 'fila') });
+        return;
+      }
+      if (vistos.has(r.data.dni)) {
+        errores.push({ fila: i + 1, motivo: 'DNI repetido' });
+        return;
+      }
+      vistos.add(r.data.dni);
+      validas.push(r.data);
+    });
+
+    const existentes = await prisma.usuario.findMany({
+      where: { dni: { in: validas.map((v) => v.dni) } },
+      select: { dni: true },
+    });
+    const yaExisten = new Set(existentes.map((e) => e.dni));
+    const nuevas = validas.filter((v) => !yaExisten.has(v.dni));
+
+    const filas = [];
+    for (let i = 0; i < nuevas.length; i += 10) {
+      const tanda = nuevas.slice(i, i + 10);
+      const hashes = await Promise.all(tanda.map((f) => bcrypt.hash(f.password || base || f.dni, 10)));
+      tanda.forEach((f, j) => filas.push({
+        dni: f.dni, nombre: f.nombre, email: f.email, telefono: f.telefono,
+        passwordHash: hashes[j], rol: 'SOCIO', gimnasioId,
+      }));
+    }
+    const resultado = filas.length
+      ? await prisma.usuario.createMany({ data: filas, skipDuplicates: true })
+      : { count: 0 };
+    res.status(201).json({ creados: resultado.count, yaExistian: yaExisten.size, errores });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'No se pudo importar el archivo' });
   }
 });
 
