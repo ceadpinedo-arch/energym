@@ -1,3 +1,4 @@
+import kioscoRoutes from './routes/kiosco.js';
 import { verificarActivo } from './middleware/activo.js';
 import express from 'express';
 import { iniciarCron } from './cron.js';
@@ -28,6 +29,7 @@ app.use('/api/asistencia', asistenciaAppRoutes);
 app.use('/api/ia', iaRoutes);
 app.use('/api/pagos', pagosRoutes);
 app.use('/api/gimnasio', gimnasioRoutes);
+app.use('/api/kiosco', kioscoRoutes);
 // Ruta de estado
 app.get('/', (req, res) => {
   res.send('✅ API Energym funcionando correctamente');

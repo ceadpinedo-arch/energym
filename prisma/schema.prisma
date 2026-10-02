@@ -47,6 +47,7 @@ model Gimnasio {
   linkApp   String?
   mensajeBienvenida String?
   activo Boolean @default(true)
+  kioscoToken String? @unique
 }
 
 model Usuario {
