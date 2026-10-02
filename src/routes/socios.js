@@ -61,6 +61,7 @@ router.get('/:id/detalle', requireAuth, requireAdmin, async (req, res) => {
       select: {
         id: true, dni: true, nombre: true, email: true, telefono: true,
         estadoPago: true, vencimiento: true, creadoEn: true,
+        planId: true, plan: { select: { id: true, nombre: true, precio: true, meses: true } },
         pagos: {
           orderBy: { pagadoEn: 'desc' },
           take: 12,
