@@ -66,6 +66,8 @@ model Usuario {
   pushTokens     PushToken[]
   pagos          Pago[]
   telefono     String?
+  planId  String?
+  plan    PlanCuota? @relation(fields: [planId], references: [id], onDelete: SetNull)
 }
 
 model Ejercicio {
@@ -164,4 +166,18 @@ model PlantillaItem {
   repeticiones String          @default("10-12")
   orden        Int             @default(0)
   dia          String?
+}
+
+
+model PlanCuota {
+  id         String    @id @default(uuid())
+  gimnasioId String
+  nombre     String
+  precio     Float
+  meses      Int       @default(1)
+  activo     Boolean   @default(true)
+  creadoEn   DateTime  @default(now())
+  usuarios   Usuario[]
+
+  @@index([gimnasioId])
 }

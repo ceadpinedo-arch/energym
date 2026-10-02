@@ -8,9 +8,14 @@ const router = Router();
 
 const mpClient = new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN || process.env.MERCADOPAGO_ACCESS_TOKEN });
 
-function proximoVencimiento(desde = new Date()) {
+async function mesesDelSocio(usuarioId) {
+  const u = await prisma.usuario.findUnique({ where: { id: usuarioId }, select: { plan: { select: { meses: true } } } });
+  return (u && u.plan && u.plan.meses) || 1;
+}
+
+function proximoVencimiento(desde = new Date(), meses = 1) {
   const d = new Date(desde);
-  d.setMonth(d.getMonth() + 1);
+  d.setMonth(d.getMonth() + meses);
   return d;
 }
 
@@ -47,7 +52,7 @@ router.post('/efectivo', requireAuth, requireAdmin, async (req, res) => {
 
   await prisma.usuario.update({
     where: { id: usuarioId },
-    data: { estadoPago: 'AL_DIA', vencimiento: proximoVencimiento() },
+    data: { estadoPago: 'AL_DIA', vencimiento: proximoVencimiento(new Date(), await mesesDelSocio(usuarioId)) },
   });
 
   res.status(201).json(pago);
@@ -64,8 +69,8 @@ router.post('/crear-preferencia', requireAuth, async (req, res) => {
   if (!parsed.success) return res.status(400).json({ error: 'Datos inválidos' });
 
   const { usuarioId } = parsed.data;
-    const socioMP = await prisma.usuario.findUnique({ where: { id: usuarioId }, include: { gimnasio: true } });
-    const monto = socioMP?.gimnasio?.cuota ?? parsed.data.monto;
+    const socioMP = await prisma.usuario.findUnique({ where: { id: usuarioId }, include: { gimnasio: true, plan: true } });
+    const monto = (socioMP && socioMP.plan ? socioMP.plan.precio : null) ?? socioMP?.gimnasio?.cuota ?? parsed.data.monto;
     if (!monto) return res.status(400).json({ error: 'Cuota no configurada' });
 
   if (req.usuario.rol !== 'ADMIN' && req.usuario.id !== usuarioId) {
@@ -89,7 +94,7 @@ router.post('/crear-preferencia', requireAuth, async (req, res) => {
             currency_id: 'ARS',
           },
         ],
-        external_reference: `${usuarioId}|${periodo}|${monto}`,
+        external_reference: usuarioId + '|' + periodo + '|' + monto,
         notification_url: `${process.env.BACKEND_URL}/api/pagos/webhook/mercadopago`,
       },
     });
@@ -134,7 +139,7 @@ router.post('/webhook/mercadopago', async (req, res) => {
 
     await prisma.usuario.update({
       where: { id: usuarioId },
-      data: { estadoPago: 'AL_DIA', vencimiento: proximoVencimiento() },
+      data: { estadoPago: 'AL_DIA', vencimiento: proximoVencimiento(new Date(), await mesesDelSocio(usuarioId)) },
     });
 
     res.status(200).end();
@@ -241,7 +246,7 @@ router.get('/morosos', requireAuth, requireAdmin, async (req, res) => {
       prisma.usuario.findMany({
         where: { rol: 'SOCIO', estadoPago: 'VENCIDO', ...(gimnasioId ? { gimnasioId } : {}) },
         orderBy: { vencimiento: 'asc' },
-        select: { id: true, nombre: true, dni: true, telefono: true, vencimiento: true },
+        select: { id: true, nombre: true, dni: true, telefono: true, vencimiento: true, plan: { select: { nombre: true, precio: true, meses: true } } },
       }),
       gimnasioId ? prisma.gimnasio.findUnique({ where: { id: gimnasioId }, select: { nombre: true, cuota: true } }) : null,
     ]);
