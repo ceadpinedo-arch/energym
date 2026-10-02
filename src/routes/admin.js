@@ -3,6 +3,7 @@ import { z } from 'zod';
 import pkg from '@prisma/client';
 import prismaModule from '../prisma.js';
 import { requireAuth, requireAdmin } from '../middleware/auth.js';
+import { esSuper } from '../middleware/super.js';
 
 const { GrupoMuscular } = pkg;
 const router = Router();
@@ -54,42 +55,52 @@ function itemsData(items) {
 }
 
 // ---------- Ejercicios ----------
+async function puedeEditar(req, e) {
+  if (!e) return false;
+  const gid = await gimnasioDe(req);
+  if (e.gimnasioId) return e.gimnasioId === gid;
+  return esSuper(req);
+}
+
 router.get('/grupos', (req, res) => {
   res.json(Object.values(GrupoMuscular));
 });
 
 router.get('/ejercicios', async (req, res) => {
+  const gid = await gimnasioDe(req);
+  const sup = await esSuper(req);
   const lista = await prisma.ejercicio.findMany({
+    where: { OR: [{ gimnasioId: null }, { gimnasioId: gid }] },
     orderBy: [{ grupoMuscular: 'asc' }, { nombre: 'asc' }],
   });
-  res.json(lista);
+  res.json(lista.map((e) => ({ ...e, editable: e.gimnasioId ? e.gimnasioId === gid : sup })));
 });
 
 router.post('/ejercicios', async (req, res) => {
   const p = ejSchema.safeParse(req.body);
   if (!p.success) return res.status(400).json({ error: 'Datos inválidos' });
-  const nuevo = await prisma.ejercicio.create({ data: p.data });
+  const gid = await gimnasioDe(req);
+  const base = req.body.base === true && (await esSuper(req));
+  const nuevo = await prisma.ejercicio.create({ data: { ...p.data, gimnasioId: base ? null : gid } });
   res.json(nuevo);
 });
 
 router.put('/ejercicios/:id', async (req, res) => {
   const p = ejSchema.safeParse(req.body);
   if (!p.success) return res.status(400).json({ error: 'Datos inválidos' });
-  try {
-    const e = await prisma.ejercicio.update({ where: { id: req.params.id }, data: p.data });
-    res.json(e);
-  } catch (err) {
-    res.status(404).json({ error: 'Ejercicio no encontrado' });
-  }
+  const e = await prisma.ejercicio.findUnique({ where: { id: req.params.id } });
+  if (!e) return res.status(404).json({ error: 'Ejercicio no encontrado' });
+  if (!(await puedeEditar(req, e))) return res.status(403).json({ error: 'No podés editar este ejercicio' });
+  const act = await prisma.ejercicio.update({ where: { id: e.id }, data: p.data });
+  res.json(act);
 });
 
 router.delete('/ejercicios/:id', async (req, res) => {
-  try {
-    await prisma.ejercicio.delete({ where: { id: req.params.id } });
-    res.json({ success: true });
-  } catch (err) {
-    res.status(404).json({ error: 'Ejercicio no encontrado' });
-  }
+  const e = await prisma.ejercicio.findUnique({ where: { id: req.params.id } });
+  if (!e) return res.status(404).json({ error: 'Ejercicio no encontrado' });
+  if (!(await puedeEditar(req, e))) return res.status(403).json({ error: 'No podés borrar este ejercicio' });
+  await prisma.ejercicio.delete({ where: { id: e.id } });
+  res.json({ success: true });
 });
 
 // ---------- Rutinas modelo ----------

@@ -27,7 +27,7 @@ router.get('/', async (req, res) => {
   try {
     let ejercicios = [];
     if (prisma && prisma.ejercicio) {
-      ejercicios = await prisma.ejercicio.findMany();
+      ejercicios = await prisma.ejercicio.findMany({ where: { OR: [{ gimnasioId: null }, { gimnasioId: (req.usuario && req.usuario.gimnasioId) || null }] } });
     }
     if (!ejercicios || ejercicios.length === 0) {
       ejercicios = EJERCICIOS_DEFAULT;

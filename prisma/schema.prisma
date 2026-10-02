@@ -78,6 +78,8 @@ model Ejercicio {
   imagenUrl     String?
   rutinas       RutinaEjercicio[]
   plantillaItems PlantillaItem[]
+  gimnasioId String?
+  @@index([gimnasioId])
 }
 
 model Rutina {

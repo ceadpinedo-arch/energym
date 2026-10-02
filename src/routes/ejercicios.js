@@ -10,6 +10,7 @@ router.get('/', requireAuth, async (req, res) => {
     const targetGrupo = grupo || grupoM || grupoMuscular;
 
     const where = {};
+    where.OR = [{ gimnasioId: null }, { gimnasioId: (req.usuario && req.usuario.gimnasioId) || null }];
 
     const rawIds = ids || id;
     if (rawIds) {
