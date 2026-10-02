@@ -4,6 +4,7 @@ import cors from 'cors';
 import authRoutes from './routes/auth.js';
 import ejerciciosRoutes from './routes/ejercicios.js';
 import rutinasRoutes from './routes/rutinas.js';
+import adminRoutes from './routes/admin.js';
 import iaRoutes from './routes/ia.js';
 import entrenosRoutes from './routes/entrenos.js';
 import pushRoutes from './routes/push.js';
@@ -33,6 +34,7 @@ app.get('/', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/ejercicios', ejerciciosRoutes);
 app.use('/api/rutinas', rutinasRoutes);
+app.use('/api/admin', adminRoutes);
 
 const PORT = process.env.PORT || 3000;
 iniciarCron();

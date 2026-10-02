@@ -73,6 +73,7 @@ model Ejercicio {
   descripcion   String?
   imagenUrl     String?
   rutinas       RutinaEjercicio[]
+  plantillaItems PlantillaItem[]
 }
 
 model Rutina {
@@ -138,4 +139,27 @@ model Pago {
   metodo        MetodoPago
   registradoPor String?
   pagadoEn      DateTime    @default(now())
+}
+
+
+model PlantillaRutina {
+  id         String          @id @default(uuid())
+  gimnasioId String
+  nombre     String
+  creadoEn   DateTime        @default(now())
+  items      PlantillaItem[]
+
+  @@index([gimnasioId])
+}
+
+model PlantillaItem {
+  id           String          @id @default(uuid())
+  plantillaId  String
+  plantilla    PlantillaRutina @relation(fields: [plantillaId], references: [id], onDelete: Cascade)
+  ejercicioId  String
+  ejercicio    Ejercicio       @relation(fields: [ejercicioId], references: [id], onDelete: Cascade)
+  series       Int             @default(4)
+  repeticiones String          @default("10-12")
+  orden        Int             @default(0)
+  dia          String?
 }
