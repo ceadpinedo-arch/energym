@@ -1,3 +1,4 @@
+import { verificarActivo } from './middleware/activo.js';
 import express from 'express';
 import { iniciarCron } from './cron.js';
 import cors from 'cors';
@@ -18,6 +19,7 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
+app.use('/api', verificarActivo);
 app.use('/api/entrenos', entrenosRoutes);
 app.use('/api/push', pushRoutes);
 app.use('/api/socios', socioRoutes);

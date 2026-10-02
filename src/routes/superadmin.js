@@ -1,3 +1,4 @@
+import { limpiarCache } from '../middleware/activo.js';
 import { Router } from 'express';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
@@ -18,7 +19,7 @@ router.get('/yo', requireAuth, requireAdmin, async (req, res) => {
 router.get('/gimnasios', requireAuth, requireAdmin, requireSuper, async (req, res) => {
   try {
     const [gimnasios, socios, admins] = await Promise.all([
-      prisma.gimnasio.findMany({ orderBy: { creadoEn: 'desc' }, select: { id: true, nombre: true, cuota: true, creadoEn: true } }),
+      prisma.gimnasio.findMany({ orderBy: { creadoEn: 'desc' }, select: { id: true, nombre: true, cuota: true, creadoEn: true, activo: true } }),
       prisma.usuario.groupBy({ by: ['gimnasioId'], where: { rol: 'SOCIO' }, _count: { _all: true } }),
       prisma.usuario.findMany({ where: { rol: 'ADMIN' }, select: { gimnasioId: true, nombre: true, dni: true } }),
     ]);
@@ -64,6 +65,24 @@ router.post('/gimnasios', requireAuth, requireAdmin, requireSuper, async (req, r
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'No se pudo crear el gimnasio' });
+  }
+});
+
+router.patch('/gimnasios/:id/activo', requireAuth, requireAdmin, requireSuper, async (req, res) => {
+  try {
+    const activo = !!(req.body && req.body.activo === true);
+    const g = await prisma.gimnasio.findUnique({ where: { id: req.params.id } });
+    if (!g) return res.status(404).json({ error: 'Gimnasio no encontrado' });
+    if (!activo) {
+      const yo = await prisma.usuario.findUnique({ where: { id: req.usuario.id }, select: { gimnasioId: true } });
+      if (yo && yo.gimnasioId === g.id) return res.status(400).json({ error: 'No pod\u00e9s desactivar el gimnasio de tu propia cuenta' });
+    }
+    await prisma.gimnasio.update({ where: { id: g.id }, data: { activo } });
+    limpiarCache();
+    res.json({ id: g.id, activo });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'No se pudo cambiar el estado' });
   }
 });
 

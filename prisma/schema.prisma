@@ -46,6 +46,7 @@ model Gimnasio {
   cbu       String?
   linkApp   String?
   mensajeBienvenida String?
+  activo Boolean @default(true)
 }
 
 model Usuario {
