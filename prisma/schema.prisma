@@ -44,6 +44,8 @@ model Gimnasio {
   instagram String?
   alias     String?
   cbu       String?
+  linkApp   String?
+  mensajeBienvenida String?
 }
 
 model Usuario {

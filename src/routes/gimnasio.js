@@ -31,6 +31,8 @@ const updateSchema = z.object({
   instagram: z.string().max(200).optional(),
   alias: z.string().max(80).optional(),
   cbu: z.string().max(60).optional(),
+  linkApp: z.string().max(300).optional(),
+  mensajeBienvenida: z.string().max(1000).optional(),
 });
 
 router.patch('/me', requireAuth, requireAdmin, async (req, res) => {
@@ -47,6 +49,12 @@ router.patch('/me', requireAuth, requireAdmin, async (req, res) => {
   if (parsed.data.whatsapp !== undefined) data.whatsapp = limpiarWhatsapp(parsed.data.whatsapp) || null;
   if (parsed.data.instagram !== undefined) data.instagram = limpiarInstagram(parsed.data.instagram) || null;
   if (parsed.data.alias !== undefined) data.alias = limpiarAlias(parsed.data.alias) || null;
+  if (parsed.data.linkApp !== undefined) {
+    const enlace = String(parsed.data.linkApp).trim();
+    if (enlace && !/^https?:\/\//i.test(enlace)) return res.status(400).json({ error: 'El enlace debe empezar con https://' });
+    data.linkApp = enlace || null;
+  }
+  if (parsed.data.mensajeBienvenida !== undefined) data.mensajeBienvenida = parsed.data.mensajeBienvenida.trim() || null;
   if (parsed.data.cbu !== undefined) {
     const cbuLimpio = limpiarCbu(parsed.data.cbu);
     if (cbuLimpio && cbuLimpio.length !== 22) return res.status(400).json({ error: 'El CBU debe tener 22 dígitos' });
