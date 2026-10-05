@@ -48,6 +48,10 @@ model Gimnasio {
   mensajeBienvenida String?
   activo Boolean @default(true)
   kioscoToken String? @unique
+  mpAccessToken String?
+  mpRefreshToken String?
+  mpUserId String?
+  mpExpira DateTime?
 }
 
 model Usuario {

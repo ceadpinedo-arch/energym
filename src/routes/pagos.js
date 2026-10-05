@@ -1,3 +1,4 @@
+import { clienteDelGimnasio } from '../lib/mpgym.js';
 import { Router } from 'express';
 import { z } from 'zod';
 import { MercadoPagoConfig, Preference, Payment } from 'mercadopago';
@@ -83,19 +84,21 @@ router.post('/crear-preferencia', requireAuth, async (req, res) => {
   const periodo = periodoActual();
 
   try {
-    const preference = new Preference(mpClient);
+    const clienteMP = await clienteDelGimnasio(socioMP && socioMP.gimnasio);
+    if (!clienteMP) return res.status(400).json({ error: 'Este gimnasio todavía no conectó Mercado Pago' });
+    const preference = new Preference(clienteMP);
     const result = await preference.create({
       body: {
         items: [
           {
-            title: `Cuota Energym - ${periodo}`,
+            title: 'Cuota ' + ((socioMP && socioMP.gimnasio && socioMP.gimnasio.nombre) || 'del gimnasio') + ' - ' + periodo,
             quantity: 1,
             unit_price: monto,
             currency_id: 'ARS',
           },
         ],
         external_reference: usuarioId + '|' + periodo + '|' + monto,
-        notification_url: `${process.env.BACKEND_URL}/api/pagos/webhook/mercadopago`,
+        notification_url: process.env.BACKEND_URL + '/api/pagos/webhook/mercadopago?g=' + socioMP.gimnasio.id,
       },
     });
 
@@ -116,7 +119,14 @@ router.post('/webhook/mercadopago', async (req, res) => {
       return res.status(200).end();
     }
 
-    const paymentClient = new Payment(mpClient);
+    const gid = typeof req.query.g === 'string' ? req.query.g : '';
+    let clienteWebhook = mpClient;
+    if (gid) {
+      const gw = await prisma.gimnasio.findUnique({ where: { id: gid } });
+      clienteWebhook = await clienteDelGimnasio(gw);
+      if (!clienteWebhook) return res.status(200).end();
+    }
+    const paymentClient = new Payment(clienteWebhook);
     const payment = await paymentClient.get({ id: paymentId });
 
     if (payment.status !== 'approved') {
@@ -125,6 +135,10 @@ router.post('/webhook/mercadopago', async (req, res) => {
 
     const [usuarioId, periodo, montoStr] = (payment.external_reference || '').split('|');
     if (!usuarioId || !periodo) return res.status(200).end();
+    if (gid) {
+      const uw = await prisma.usuario.findUnique({ where: { id: usuarioId }, select: { gimnasioId: true } });
+      if (!uw || uw.gimnasioId !== gid) return res.status(200).end();
+    }
 
     const monto = Number(montoStr) || payment.transaction_amount;
 

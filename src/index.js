@@ -1,3 +1,5 @@
+import { sanitizar } from './middleware/sanitizar.js';
+import mpRoutes from './routes/mp.js';
 import kioscoRoutes from './routes/kiosco.js';
 import { verificarActivo } from './middleware/activo.js';
 import express from 'express';
@@ -21,6 +23,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use('/api', verificarActivo);
+app.use('/api', sanitizar);
 app.use('/api/entrenos', entrenosRoutes);
 app.use('/api/push', pushRoutes);
 app.use('/api/socios', socioRoutes);
@@ -30,6 +33,7 @@ app.use('/api/ia', iaRoutes);
 app.use('/api/pagos', pagosRoutes);
 app.use('/api/gimnasio', gimnasioRoutes);
 app.use('/api/kiosco', kioscoRoutes);
+app.use('/api/mp', mpRoutes);
 // Ruta de estado
 app.get('/', (req, res) => {
   res.send('✅ API Energym funcionando correctamente');
