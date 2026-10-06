@@ -30,7 +30,11 @@ export async function pedirToken(extra) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(Object.assign({ client_id: process.env.MP_CLIENT_ID, client_secret: process.env.MP_CLIENT_SECRET }, extra)),
   });
-  if (!r.ok) throw new Error('Mercado Pago OAuth ' + r.status);
+  if (!r.ok) {
+    let cuerpo = '';
+    try { cuerpo = await r.text(); } catch (e) { cuerpo = ''; }
+    throw new Error('Mercado Pago OAuth ' + r.status + ' ' + cuerpo.slice(0, 300));
+  }
   return r.json();
 }
 
