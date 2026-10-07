@@ -91,4 +91,16 @@ router.post('/desconectar', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
+router.get('/disponible', requireAuth, async (req, res) => {
+  try {
+    const gid = await gimnasioDe(req);
+    if (!gid) return res.json({ conectado: false });
+    const g = await prisma.gimnasio.findUnique({ where: { id: gid }, select: { mpAccessToken: true } });
+    res.json({ conectado: !!(g && g.mpAccessToken) });
+  } catch (e) {
+    console.error(e);
+    res.json({ conectado: false });
+  }
+});
+
 export default router;
