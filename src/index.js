@@ -1,3 +1,4 @@
+import clavesRoutes from './routes/claves.js';
 import { sanitizar } from './middleware/sanitizar.js';
 import mpRoutes from './routes/mp.js';
 import kioscoRoutes from './routes/kiosco.js';
@@ -34,6 +35,7 @@ app.use('/api/pagos', pagosRoutes);
 app.use('/api/gimnasio', gimnasioRoutes);
 app.use('/api/kiosco', kioscoRoutes);
 app.use('/api/mp', mpRoutes);
+app.use('/api/claves', clavesRoutes);
 // Ruta de estado
 app.get('/', (req, res) => {
   res.send('✅ API Energym funcionando correctamente');
