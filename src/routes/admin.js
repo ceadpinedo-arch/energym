@@ -22,7 +22,8 @@ const ejSchema = z.object({
   nombre: z.string().min(1).max(80),
   grupoMuscular: z.nativeEnum(GrupoMuscular),
   descripcion: z.string().max(300).nullable().optional(),
-  imagenUrl: z.string().max(500).nullable().optional(),
+  imagenUrl: z.string().max(600000).nullable().optional(),
+  videoUrl: z.string().max(300).regex(/^https?:\/\//i, 'Enlace invalido').nullable().optional(),
 });
 
 const itemsSchema = z.array(z.object({

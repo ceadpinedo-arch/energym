@@ -23,6 +23,7 @@ router.get('/', requireAuth, async (req, res) => {
     }
 
     const ejercicios = await prisma.ejercicio.findMany({ where });
+    const baseUrl = (process.env.BACKEND_URL || ('https://' + req.get('host'))).replace(/\/$/, '');
 
     const respuestaFormateada = ejercicios.map(e => {
       const rawGrupo = e.grupoMuscular || '';
@@ -30,7 +31,8 @@ router.get('/', requireAuth, async (req, res) => {
         ? rawGrupo.charAt(0).toUpperCase() + rawGrupo.slice(1).toLowerCase()
         : rawGrupo;
 
-      const imgUrl = e.imagenUrl || e.imagen || '';
+      const imgRaw = e.imagenUrl || e.imagen || '';
+      const imgUrl = String(imgRaw).startsWith('data:') ? baseUrl + '/api/ejercicios/' + e.id + '/imagen?v=' + String(imgRaw).length : imgRaw;
       const idString = String(e.id);
       const imgObject = imgUrl ? { uri: imgUrl } : null;
 
@@ -74,6 +76,19 @@ router.get('/', requireAuth, async (req, res) => {
   } catch (error) {
     console.error('Error al obtener ejercicios:', error);
     res.status(500).json({ error: 'Error interno al obtener ejercicios' });
+  }
+});
+
+router.get('/:id/imagen', async (req, res) => {
+  try {
+    const e = await prisma.ejercicio.findUnique({ where: { id: req.params.id } });
+    const m = e && e.imagenUrl ? /^data:(image\/[a-zA-Z+.-]+);base64,(.+)$/.exec(e.imagenUrl) : null;
+    if (!m) return res.status(404).end();
+    res.set('Content-Type', m[1]);
+    res.set('Cache-Control', 'public, max-age=86400');
+    res.send(Buffer.from(m[2], 'base64'));
+  } catch (err) {
+    res.status(500).end();
   }
 });
 
