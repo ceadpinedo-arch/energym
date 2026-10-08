@@ -33,6 +33,7 @@ const updateSchema = z.object({
   cbu: z.string().max(60).optional(),
   linkApp: z.string().max(300).optional(),
   mensajeBienvenida: z.string().max(1000).optional(),
+  spotifyUrl: z.string().max(300).optional(),
 });
 
 router.patch('/me', requireAuth, requireAdmin, async (req, res) => {
@@ -55,6 +56,11 @@ router.patch('/me', requireAuth, requireAdmin, async (req, res) => {
     data.linkApp = enlace || null;
   }
   if (parsed.data.mensajeBienvenida !== undefined) data.mensajeBienvenida = parsed.data.mensajeBienvenida.trim() || null;
+  if (parsed.data.spotifyUrl !== undefined) {
+    const sp = String(parsed.data.spotifyUrl).trim();
+    if (sp && !/^https:\/\/(open\.spotify\.com|spotify\.link)\//i.test(sp)) return res.status(400).json({ error: 'El enlace debe ser de Spotify (https://open.spotify.com/...)' });
+    data.spotifyUrl = sp || null;
+  }
   if (parsed.data.cbu !== undefined) {
     const cbuLimpio = limpiarCbu(parsed.data.cbu);
     if (cbuLimpio && cbuLimpio.length !== 22) return res.status(400).json({ error: 'El CBU debe tener 22 dígitos' });

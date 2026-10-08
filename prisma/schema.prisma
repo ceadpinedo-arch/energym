@@ -52,6 +52,7 @@ model Gimnasio {
   mpRefreshToken String?
   mpUserId String?
   mpExpira DateTime?
+  spotifyUrl String?
 }
 
 model Usuario {
