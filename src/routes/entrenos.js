@@ -62,4 +62,27 @@ router.get('/ultimos', requireAuth, async (req, res) => {
   }
 });
 
+router.get('/progreso', requireAuth, async (req, res) => {
+  try {
+    const filas = await prisma.registro.findMany({
+      where: { usuarioId: uid(req) },
+      orderBy: [{ dia: 'asc' }, { creadoEn: 'asc' }],
+      take: 2000,
+    });
+    const out = {};
+    for (const f of filas) {
+      if (!out[f.ejercicioId]) out[f.ejercicioId] = { maximo: null, total: 0, sesiones: [] };
+      const o = out[f.ejercicioId];
+      o.total += 1;
+      if (!o.maximo || f.peso > o.maximo.peso) o.maximo = { peso: f.peso, dia: f.dia };
+      o.sesiones.push({ dia: f.dia, peso: f.peso, series: f.series, repeticiones: f.repeticiones });
+    }
+    Object.keys(out).forEach((k) => { out[k].sesiones = out[k].sesiones.slice(-12); });
+    res.json(out);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Error al obtener el progreso' });
+  }
+});
+
 export default router;
