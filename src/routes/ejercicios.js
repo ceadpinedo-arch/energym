@@ -2,6 +2,11 @@ import { Router } from 'express';
 import { prisma } from '../prisma.js';
 import { requireAuth } from '../middleware/auth.js';
 
+const ytThumb = (url) => {
+  const m = /(?:youtu\.be\/|youtube\.com\/(?:watch\?(?:.*&)?v=|shorts\/|embed\/))([A-Za-z0-9_-]{11})/.exec(String(url || ''));
+  return m ? 'https://img.youtube.com/vi/' + m[1] + '/hqdefault.jpg' : '';
+};
+
 const router = Router();
 
 router.get('/', requireAuth, async (req, res) => {
@@ -33,7 +38,8 @@ router.get('/', requireAuth, async (req, res) => {
         : rawGrupo;
 
       const imgRaw = e.imagenUrl || e.imagen || '';
-      const imgUrl = String(imgRaw).startsWith('data:') ? baseUrl + '/api/ejercicios/' + e.id + '/imagen?v=' + String(imgRaw).length : imgRaw;
+      const imgBase = String(imgRaw).startsWith('data:') ? baseUrl + '/api/ejercicios/' + e.id + '/imagen?v=' + String(imgRaw).length : imgRaw;
+      const imgUrl = imgBase || ytThumb(e.videoUrl);
       const idString = String(e.id);
       const imgObject = imgUrl ? { uri: imgUrl } : null;
 
