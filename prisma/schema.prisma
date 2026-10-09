@@ -83,6 +83,7 @@ model Ejercicio {
   grupoMuscular GrupoMuscular
   descripcion   String?
   imagenUrl     String?
+  videoUrl String?
   rutinas       RutinaEjercicio[]
   plantillaItems PlantillaItem[]
   gimnasioId String?
