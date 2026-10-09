@@ -10,7 +10,8 @@ router.get('/', requireAuth, async (req, res) => {
     const targetGrupo = grupo || grupoM || grupoMuscular;
 
     const where = {};
-    where.OR = [{ gimnasioId: null }, { gimnasioId: (req.usuario && req.usuario.gimnasioId) || null }];
+    const yo = req.usuario ? await prisma.usuario.findUnique({ where: { id: req.usuario.id }, select: { gimnasioId: true } }) : null;
+    where.OR = [{ gimnasioId: null }, { gimnasioId: (yo && yo.gimnasioId) || null }];
 
     const rawIds = ids || id;
     if (rawIds) {
