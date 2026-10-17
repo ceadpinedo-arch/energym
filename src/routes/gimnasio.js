@@ -11,7 +11,7 @@ router.get('/me', requireAuth, async (req, res) => {
     include: { gimnasio: true },
   });
   if (!usuario?.gimnasio) return res.status(404).json({ error: 'Sin gimnasio asignado' });
-  res.json(usuario.gimnasio);
+  res.json(publico(usuario.gimnasio, usuario.rol === 'ADMIN'));
 });
 
 const limpiarWhatsapp = (v) => String(v).replace(/\D/g, '');
@@ -22,6 +22,19 @@ const limpiarInstagram = (v) => {
 
 const limpiarAlias = (v) => String(v).trim().replace(/\s+/g, '');
 const limpiarCbu = (v) => String(v).replace(/\D/g, '');
+const SECRETOS = ['mpAccessToken', 'mpRefreshToken', 'mpUserId', 'mpExpira'];
+const publico = (g, esAdmin) => {
+  const o = Object.assign({}, g);
+  o.mpConectado = !!g.mpAccessToken;
+  SECRETOS.forEach((k) => { delete o[k]; });
+  if (!esAdmin) delete o.kioscoToken;
+  return o;
+};
+const limpiarRed = (v, dom) => {
+  const s = String(v).trim().replace(new RegExp('^https?://(www\\.)?(' + dom + ')/@?', 'i'), '');
+  return s.split(/[/?#]/)[0].replace(/^@/, '');
+};
+const limpiarHashtag = (v) => String(v).replace(/[^\p{L}\p{N}_]/gu, '').slice(0, 30);
 
 const updateSchema = z.object({
   nombre: z.string().min(1).max(60).optional(),
@@ -29,6 +42,10 @@ const updateSchema = z.object({
   cuota: z.number().positive().max(100000000).optional(),
   whatsapp: z.string().max(200).optional(),
   instagram: z.string().max(200).optional(),
+  facebook: z.string().max(200).optional(),
+  tiktok: z.string().max(200).optional(),
+  redX: z.string().max(200).optional(),
+  hashtag: z.string().max(60).optional(),
   alias: z.string().max(80).optional(),
   cbu: z.string().max(60).optional(),
   linkApp: z.string().max(300).optional(),
@@ -49,6 +66,10 @@ router.patch('/me', requireAuth, requireAdmin, async (req, res) => {
   if (parsed.data.cuota) data.cuota = parsed.data.cuota;
   if (parsed.data.whatsapp !== undefined) data.whatsapp = limpiarWhatsapp(parsed.data.whatsapp) || null;
   if (parsed.data.instagram !== undefined) data.instagram = limpiarInstagram(parsed.data.instagram) || null;
+  if (parsed.data.facebook !== undefined) data.facebook = limpiarRed(parsed.data.facebook, 'facebook\\.com|fb\\.com') || null;
+  if (parsed.data.tiktok !== undefined) data.tiktok = limpiarRed(parsed.data.tiktok, 'tiktok\\.com') || null;
+  if (parsed.data.redX !== undefined) data.redX = limpiarRed(parsed.data.redX, 'x\\.com|twitter\\.com') || null;
+  if (parsed.data.hashtag !== undefined) data.hashtag = limpiarHashtag(parsed.data.hashtag) || null;
   if (parsed.data.alias !== undefined) data.alias = limpiarAlias(parsed.data.alias) || null;
   if (parsed.data.linkApp !== undefined) {
     const enlace = String(parsed.data.linkApp).trim();
@@ -71,7 +92,7 @@ router.patch('/me', requireAuth, requireAdmin, async (req, res) => {
     where: { id: usuario.gimnasioId },
     data,
   });
-  res.json(gimnasio);
+  res.json(publico(gimnasio, true));
 });
 
 export default router;
