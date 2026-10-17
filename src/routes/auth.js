@@ -36,9 +36,18 @@ router.post('/login', async (req, res) => {
       rol: usuario.rol,
       estadoPago: usuario.estadoPago,
       vencimiento: usuario.vencimiento,
-      gimnasio: usuario.gimnasio,
+      gimnasio: quitarSecretos(usuario.gimnasio, usuario.rol === 'ADMIN'),
     },
   });
 });
+
+const quitarSecretos = (g, esAdmin) => {
+  if (!g) return g;
+  const o = Object.assign({}, g);
+  o.mpConectado = !!g.mpAccessToken;
+  ['mpAccessToken', 'mpRefreshToken', 'mpUserId', 'mpExpira'].forEach((k) => { delete o[k]; });
+  if (!esAdmin) delete o.kioscoToken;
+  return o;
+};
 
 export default router;
