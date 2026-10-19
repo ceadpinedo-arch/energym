@@ -195,3 +195,9 @@ model PlanCuota {
 
   @@index([gimnasioId])
 }
+
+model GimnasioFinanzas {
+  gimnasioId  String   @id
+  gastosFijos Float    @default(0)
+  actualizadoEn DateTime @updatedAt
+}
