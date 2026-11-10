@@ -52,6 +52,7 @@ model Gimnasio {
   mensajeBienvenida String?
   activo Boolean @default(true)
   kioscoToken String? @unique
+puertaFisica Boolean @default(false)
   mpAccessToken String?
   mpRefreshToken String?
   mpUserId String?

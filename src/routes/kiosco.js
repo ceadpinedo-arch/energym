@@ -40,8 +40,12 @@ router.get('/estado', requireAuth, requireAdmin, async (req, res) => {
   try {
     const gid = await gimnasioDe(req);
     if (!gid) return res.status(404).json({ error: 'Sin gimnasio' });
-    const g = await prisma.gimnasio.findUnique({ where: { id: gid }, select: { kioscoToken: true } });
-    res.json({ activo: !!(g && g.kioscoToken), token: g ? g.kioscoToken : null });
+    const g = await prisma.gimnasio.findUnique({ where: { id: gid } });
+    res.json({
+      activo: !!(g && g.kioscoToken),
+      token: g ? g.kioscoToken : null,
+      puertaFisica: !!(g && g.puertaFisica),
+    });
   } catch (e) {
     console.error(e);
     res.status(500).json({ error: 'Error' });
@@ -73,6 +77,20 @@ router.post('/desactivar', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
+// Interruptor "puerta fisica" del gimnasio. Apagado por defecto.
+router.post('/puerta', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const gid = await gimnasioDe(req);
+    if (!gid) return res.status(404).json({ error: 'Sin gimnasio' });
+    const activa = !!(req.body && req.body.activa === true);
+    await prisma.gimnasio.update({ where: { id: gid }, data: { puertaFisica: activa } });
+    res.json({ puertaFisica: activa });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Error' });
+  }
+});
+
 router.post('/checkin', async (req, res) => {
   const b = req.body || {};
   const token = String(b.token || '');
@@ -96,7 +114,7 @@ router.post('/checkin', async (req, res) => {
     } catch (e) {
       if (!(e && e.code === 'P2002')) throw e;
     }
-    res.json({ permitido: true, nombre: nombre });
+    res.json({ permitido: true, nombre: nombre, puertaFisica: !!g.puertaFisica });
   } catch (e) {
     console.error(e);
     res.status(500).json({ permitido: false, motivo: 'Error del servidor. Prob\u00e1 de nuevo.' });
