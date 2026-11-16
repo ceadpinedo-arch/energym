@@ -91,6 +91,22 @@ router.post('/puerta', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
+// Datos publicos para personalizar la pantalla del kiosco (solo nombre y logo).
+router.get('/info', async (req, res) => {
+  const token = String(req.query.k || '');
+  const ip = String(req.headers['x-forwarded-for'] || req.ip || '').split(',')[0].trim();
+  if (limitado('info:' + ip, 60)) return res.status(429).json({ error: 'Demasiados intentos' });
+  if (token.length < 20) return res.status(400).json({ error: 'Enlace invalido' });
+  try {
+    const g = await prisma.gimnasio.findUnique({ where: { kioscoToken: token }, select: { nombre: true, logoUrl: true } });
+    if (!g) return res.status(404).json({ error: 'Enlace invalido' });
+    res.json({ nombre: g.nombre || '', logoUrl: g.logoUrl || null });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Error' });
+  }
+});
+
 router.post('/checkin', async (req, res) => {
   const b = req.body || {};
   const token = String(b.token || '');

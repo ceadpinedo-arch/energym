@@ -6,10 +6,21 @@ import { requireAuth, requireAdmin } from '../middleware/auth.js';
 
 const router = Router();
 
+async function gimnasioDelAdmin(req) {
+  const a = await prisma.usuario.findUnique({ where: { id: req.usuario.id }, select: { gimnasioId: true } });
+  return a ? a.gimnasioId : null;
+}
+
+async function socioEsDelGimnasio(req, id) {
+  const gid = await gimnasioDelAdmin(req);
+  const x = await prisma.usuario.findUnique({ where: { id: id }, select: { gimnasioId: true } });
+  return !!x && x.gimnasioId === gid;
+}
+
 // Listar socios con su estado de cuota (solo admin)
 router.get('/', requireAuth, requireAdmin, async (req, res) => {
   const socios = await prisma.usuario.findMany({
-    where: { rol: 'SOCIO' },
+    where: { rol: 'SOCIO', gimnasioId: await gimnasioDelAdmin(req) },
     select: { id: true, dni: true, nombre: true, estadoPago: true, vencimiento: true },
     orderBy: { nombre: 'asc' },
   });
@@ -55,6 +66,7 @@ router.get('/me', requireAuth, async (req, res) => {
 
 // Detalle de un socio para el admin: pagos, rutina y asistencia
 router.get('/:id/detalle', requireAuth, requireAdmin, async (req, res) => {
+  if (!(await socioEsDelGimnasio(req, req.params.id))) return res.status(404).json({ error: 'Socio no encontrado' });
   try {
     const socio = await prisma.usuario.findUnique({
       where: { id: req.params.id },
@@ -97,6 +109,7 @@ const editarSchema = z.object({
 
 // Editar datos de un socio (solo admin)
 router.patch('/:id', requireAuth, requireAdmin, async (req, res) => {
+  if (!(await socioEsDelGimnasio(req, req.params.id))) return res.status(404).json({ error: 'Socio no encontrado' });
   const parsed = editarSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Datos inválidos' });
 
@@ -119,6 +132,7 @@ router.patch('/:id', requireAuth, requireAdmin, async (req, res) => {
 
 // Dar de baja (eliminar) un socio (solo admin)
 router.delete('/:id', requireAuth, requireAdmin, async (req, res) => {
+  if (!(await socioEsDelGimnasio(req, req.params.id))) return res.status(404).json({ error: 'Socio no encontrado' });
   try {
     await prisma.usuario.delete({ where: { id: req.params.id } });
     res.status(204).end();
