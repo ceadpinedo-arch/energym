@@ -1,3 +1,4 @@
+import { marcarVencidos } from '../vencidos.js';
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
@@ -19,6 +20,7 @@ async function socioEsDelGimnasio(req, id) {
 
 // Listar socios con su estado de cuota (solo admin)
 router.get('/', requireAuth, requireAdmin, async (req, res) => {
+  await marcarVencidos();
   const socios = await prisma.usuario.findMany({
     where: { rol: 'SOCIO', gimnasioId: await gimnasioDelAdmin(req) },
     select: { id: true, dni: true, nombre: true, estadoPago: true, vencimiento: true },
@@ -149,6 +151,9 @@ const filaImportSchema = z.object({
   email: z.preprocess(textoOpc, z.string().email().optional()),
   telefono: z.preprocess(textoOpc, z.string().refine((v) => !/\D/.test(v) && v.length >= 6 && v.length <= 15, 'telefono').optional()),
   password: z.preprocess(textoOpc, z.string().min(4).max(72).optional()),
+  vencimiento: z.preprocess(textoOpc, z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional()),
+  ingreso: z.preprocess(textoOpc, z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional()),
+  plan: z.preprocess(textoOpc, z.string().max(80).optional()),
 });
 const importarSchema = z.object({
   socios: z.array(z.any()).min(1).max(300),
@@ -184,9 +189,40 @@ router.post('/importar', requireAuth, requireAdmin, async (req, res) => {
 
     const existentes = await prisma.usuario.findMany({
       where: { dni: { in: validas.map((v) => v.dni) } },
-      select: { dni: true },
+      select: { id: true, dni: true, gimnasioId: true, rol: true, vencimiento: true, creadoEn: true, planId: true },
     });
     const yaExisten = new Set(existentes.map((e) => e.dni));
+const nrm = (t) => String(t || '').normalize('NFD').split('').filter((c) => c < '\u0300' || c > '\u036f').join('').toLowerCase().trim();
+const fechaDe = (s) => (s ? new Date(s + 'T12:00:00-03:00') : undefined);
+const vencDe = (s) => (s ? new Date(s + 'T23:59:59-03:00') : undefined);
+const estadoDe = (s) => (s && vencDe(s).getTime() < Date.now() ? 'VENCIDO' : 'AL_DIA');
+const mapaPlan = {};
+if (gimnasioId) {
+  const planesDb = await prisma.planCuota.findMany({ where: { gimnasioId }, select: { id: true, nombre: true } });
+  planesDb.forEach((p) => { mapaPlan[nrm(p.nombre)] = p.id; });
+  const faltan = {};
+  validas.forEach((v) => { const k = nrm(v.plan); if (k && !mapaPlan[k]) faltan[k] = v.plan; });
+  for (const k of Object.keys(faltan)) {
+    const np = await prisma.planCuota.create({ data: { gimnasioId, nombre: faltan[k], precio: 0 } });
+    mapaPlan[k] = np.id;
+  }
+}
+const planIdDe = (n) => mapaPlan[nrm(n)];
+const porDni = {};
+validas.forEach((v) => { porDni[v.dni] = v; });
+const propios = existentes.filter((e) => e.rol === 'SOCIO' && e.gimnasioId === gimnasioId);
+let actualizados = 0;
+for (let i = 0; i < propios.length; i += 10) {
+  await Promise.all(propios.slice(i, i + 10).map(async (e) => {
+    const f = porDni[e.dni];
+    const data = {};
+    if (f.vencimiento && !e.vencimiento) { data.vencimiento = vencDe(f.vencimiento); data.estadoPago = estadoDe(f.vencimiento); }
+    if (f.ingreso && fechaDe(f.ingreso) < e.creadoEn) data.creadoEn = fechaDe(f.ingreso);
+    if (f.plan && !e.planId && planIdDe(f.plan)) data.planId = planIdDe(f.plan);
+    if (Object.keys(data).length) { await prisma.usuario.update({ where: { id: e.id }, data }); actualizados++; }
+  }));
+}
+
     const nuevas = validas.filter((v) => !yaExisten.has(v.dni));
 
     const filas = [];
@@ -194,14 +230,14 @@ router.post('/importar', requireAuth, requireAdmin, async (req, res) => {
       const tanda = nuevas.slice(i, i + 10);
       const hashes = await Promise.all(tanda.map((f) => bcrypt.hash(f.password || base || f.dni, 10)));
       tanda.forEach((f, j) => filas.push({
-        dni: f.dni, nombre: f.nombre, email: f.email, telefono: f.telefono,
+        dni: f.dni, nombre: f.nombre, email: f.email, telefono: f.telefono, vencimiento: vencDe(f.vencimiento), creadoEn: fechaDe(f.ingreso), estadoPago: estadoDe(f.vencimiento), planId: planIdDe(f.plan),
         passwordHash: hashes[j], rol: 'SOCIO', gimnasioId,
       }));
     }
     const resultado = filas.length
       ? await prisma.usuario.createMany({ data: filas, skipDuplicates: true })
       : { count: 0 };
-    res.status(201).json({ creados: resultado.count, yaExistian: yaExisten.size, errores });
+    res.status(201).json({ creados: resultado.count, yaExistian: yaExisten.size, actualizados, errores });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'No se pudo importar el archivo' });

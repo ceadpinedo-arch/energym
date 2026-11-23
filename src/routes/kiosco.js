@@ -124,7 +124,7 @@ router.post('/checkin', async (req, res) => {
     const u = await prisma.usuario.findFirst({ where: { dni: dni, gimnasioId: g.id, rol: 'SOCIO' } });
     if (!u) return res.json({ permitido: false, motivo: 'No encontramos ese DNI en este gimnasio.' });
     const nombre = String(u.nombre || '').trim().split(' ')[0];
-    if (u.estadoPago !== 'AL_DIA') return res.json({ permitido: false, motivo: 'Cuota vencida', nombre: nombre, vencimiento: u.vencimiento ? u.vencimiento.toISOString() : null });
+    if (u.estadoPago !== 'AL_DIA' || (u.vencimiento && u.vencimiento.getTime() < Date.now())) return res.json({ permitido: false, motivo: 'Cuota vencida', nombre: nombre, vencimiento: u.vencimiento ? u.vencimiento.toISOString() : null });
     try {
       await prisma.asistencia.create({ data: tieneDia ? { usuarioId: u.id, dia: hoyAR() } : { usuarioId: u.id } });
     } catch (e) {

@@ -24,7 +24,7 @@ router.post('/checkin', async (req, res) => {
     return res.status(401).json({ permitido: false, motivo: 'DNI o contraseña incorrectos' });
   }
 
-  if (usuario.estadoPago !== 'AL_DIA') {
+  if (usuario.estadoPago !== 'AL_DIA' || (usuario.vencimiento && usuario.vencimiento.getTime() < Date.now())) {
     return res.json({ permitido: false, motivo: 'Cuota vencida', nombre: usuario.nombre });
   }
 

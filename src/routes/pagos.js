@@ -1,3 +1,4 @@
+import { marcarVencidos } from '../vencidos.js';
 import { clienteDelGimnasio } from '../lib/mpgym.js';
 import { Router } from 'express';
 import { z } from 'zod';
@@ -169,6 +170,7 @@ const inicioMesAR = (anio, mes) => new Date(anio + '-' + String(mes).padStart(2,
 
 // Admin: resumen del gimnasio (tarjetas, vencimientos, asistencia y cobros)
 router.get('/resumen', requireAuth, requireAdmin, async (req, res) => {
+  await marcarVencidos();
   try {
     const admin = await prisma.usuario.findUnique({ where: { id: req.usuario.id }, select: { gimnasioId: true } });
     const gimnasioId = admin?.gimnasioId || null;
