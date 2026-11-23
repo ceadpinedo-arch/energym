@@ -273,4 +273,22 @@ router.get('/morosos', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
+// Admin: socios al dia, con vencimiento y plan
+router.get('/al-dia', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const admin = await prisma.usuario.findUnique({ where: { id: req.usuario.id }, select: { gimnasioId: true } });
+    const gimnasioId = admin ? admin.gimnasioId : null;
+    if (!gimnasioId) return res.json({ socios: [] });
+    const socios = await prisma.usuario.findMany({
+      where: { rol: 'SOCIO', estadoPago: 'AL_DIA', gimnasioId: gimnasioId },
+      orderBy: { vencimiento: 'asc' },
+      select: { id: true, nombre: true, dni: true, vencimiento: true, plan: { select: { nombre: true } } },
+    });
+    res.json({ socios });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al obtener los socios al dia' });
+  }
+});
+
 export default router;
