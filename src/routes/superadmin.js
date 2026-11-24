@@ -180,4 +180,134 @@ router.post('/gimnasios/:id/admins/:adminId/quitar', requireAuth, requireAdmin, 
   }
 });
 
+let columnasSuscripcionListas = false;
+async function asegurarColumnasSuscripcion() {
+  if (columnasSuscripcionListas) return;
+  await prisma.$executeRawUnsafe('ALTER TABLE "Gimnasio" ADD COLUMN IF NOT EXISTS "suscripcionPrecio" DOUBLE PRECISION');
+  await prisma.$executeRawUnsafe('ALTER TABLE "Gimnasio" ADD COLUMN IF NOT EXISTS "suscripcionVence" TIMESTAMP(3)');
+  columnasSuscripcionListas = true;
+}
+
+function estadoSuscripcion(vence) {
+  if (!vence) return { estado: 'sin_fecha', dias: null };
+  const dias = Math.ceil((new Date(vence).getTime() - Date.now()) / 86400000);
+  if (dias < 0) return { estado: 'vencida', dias: dias };
+  if (dias <= 7) return { estado: 'por_vencer', dias: dias };
+  return { estado: 'al_dia', dias: dias };
+}
+
+// Dueño: numeros de su negocio. Solo cantidades por gimnasio, nunca datos personales de los socios.
+router.get('/panel', requireAuth, requireAdmin, requireSuper, async (req, res) => {
+  try {
+    await asegurarColumnasSuscripcion();
+    const [gimnasios, socios, sociosAl, admins, susc] = await Promise.all([
+      prisma.gimnasio.findMany({ orderBy: { creadoEn: 'asc' }, select: { id: true, nombre: true, activo: true, creadoEn: true } }),
+      prisma.usuario.groupBy({ by: ['gimnasioId'], where: { rol: 'SOCIO' }, _count: { _all: true } }),
+      prisma.usuario.groupBy({ by: ['gimnasioId'], where: { rol: 'SOCIO', estadoPago: { not: 'VENCIDO' } }, _count: { _all: true } }),
+      prisma.usuario.groupBy({ by: ['gimnasioId'], where: { rol: 'ADMIN' }, _count: { _all: true } }),
+      prisma.$queryRaw`SELECT "id", "suscripcionPrecio", "suscripcionVence" FROM "Gimnasio"`,
+    ]);
+    const cuenta = (arr, id) => {
+      const c = arr.filter((x) => x.gimnasioId === id)[0];
+      return c ? c._count._all : 0;
+    };
+    const lista = gimnasios.map((g) => {
+      const f = susc.filter((x) => x.id === g.id)[0];
+      const vence = f && f.suscripcionVence ? new Date(f.suscripcionVence) : null;
+      return {
+        id: g.id,
+        nombre: g.nombre,
+        activo: g.activo !== false,
+        creadoEn: g.creadoEn,
+        socios: cuenta(socios, g.id),
+        sociosActivos: cuenta(sociosAl, g.id),
+        admins: cuenta(admins, g.id),
+        precio: f && f.suscripcionPrecio !== null && f.suscripcionPrecio !== undefined ? Number(f.suscripcionPrecio) : null,
+        vence: vence ? vence.toISOString() : null,
+        ...estadoSuscripcion(vence),
+      };
+    });
+    const ahora = new Date();
+    const mesClave = (d) => d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0');
+    const altasPorMes = [];
+    for (let i = 5; i >= 0; i--) {
+      const clave = mesClave(new Date(Date.UTC(ahora.getUTCFullYear(), ahora.getUTCMonth() - i, 1)));
+      altasPorMes.push({ mes: clave, cantidad: lista.filter((g) => mesClave(new Date(g.creadoEn)) === clave).length });
+    }
+    const activos = lista.filter((g) => g.activo);
+    res.json({
+      resumen: {
+        gimnasios: lista.length,
+        activos: activos.length,
+        suspendidos: lista.length - activos.length,
+        socios: lista.reduce((a, g) => a + g.socios, 0),
+        sociosActivos: lista.reduce((a, g) => a + g.sociosActivos, 0),
+        admins: lista.reduce((a, g) => a + g.admins, 0),
+        nuevosMes: altasPorMes[altasPorMes.length - 1].cantidad,
+        ingresoMensual: activos.reduce((a, g) => a + (g.precio || 0), 0),
+        porVencer: lista.filter((g) => g.estado === 'por_vencer').length,
+        vencidas: lista.filter((g) => g.estado === 'vencida').length,
+        sinFecha: lista.filter((g) => g.estado === 'sin_fecha').length,
+      },
+      lista: lista,
+      altasPorMes: altasPorMes,
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'No se pudo armar el panel' });
+  }
+});
+
+const suscSchema = z.object({
+  precio: z.number().min(0).max(1000000000).nullable().optional(),
+  vence: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+});
+
+// Dueño: precio mensual y fecha de vencimiento de la suscripcion de un gimnasio
+router.patch('/gimnasios/:id/suscripcion', requireAuth, requireAdmin, requireSuper, async (req, res) => {
+  const p = suscSchema.safeParse(req.body);
+  if (!p.success) return res.status(400).json({ error: 'Datos inválidos: el precio es un número y la fecha va como AAAA-MM-DD.' });
+  try {
+    await asegurarColumnasSuscripcion();
+    const id = req.params.id;
+    const g = await prisma.gimnasio.findUnique({ where: { id: id }, select: { id: true } });
+    if (!g) return res.status(404).json({ error: 'Gimnasio no encontrado' });
+    if (p.data.precio === null) {
+      await prisma.$executeRaw`UPDATE "Gimnasio" SET "suscripcionPrecio" = NULL WHERE "id" = ${id}`;
+    } else if (typeof p.data.precio === 'number') {
+      await prisma.$executeRaw`UPDATE "Gimnasio" SET "suscripcionPrecio" = ${p.data.precio} WHERE "id" = ${id}`;
+    }
+    if (p.data.vence === null) {
+      await prisma.$executeRaw`UPDATE "Gimnasio" SET "suscripcionVence" = NULL WHERE "id" = ${id}`;
+    } else if (typeof p.data.vence === 'string') {
+      const f = new Date(p.data.vence + 'T12:00:00.000Z');
+      if (isNaN(f.getTime())) return res.status(400).json({ error: 'Fecha inválida' });
+      await prisma.$executeRaw`UPDATE "Gimnasio" SET "suscripcionVence" = ${f} WHERE "id" = ${id}`;
+    }
+    res.json({ ok: true });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'No se pudo guardar la suscripción' });
+  }
+});
+
+// Dueño: sumar meses a la suscripcion (desde hoy si ya estaba vencida)
+router.post('/gimnasios/:id/suscripcion/renovar', requireAuth, requireAdmin, requireSuper, async (req, res) => {
+  const meses = Math.max(1, Math.min(24, parseInt(req.body && req.body.meses, 10) || 1));
+  try {
+    await asegurarColumnasSuscripcion();
+    const id = req.params.id;
+    const filas = await prisma.$queryRaw`SELECT "suscripcionVence" FROM "Gimnasio" WHERE "id" = ${id}`;
+    if (!filas.length) return res.status(404).json({ error: 'Gimnasio no encontrado' });
+    const actual = filas[0].suscripcionVence ? new Date(filas[0].suscripcionVence) : null;
+    const base = actual && actual.getTime() > Date.now() ? actual : new Date();
+    const nueva = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth() + meses, base.getUTCDate(), 12, 0, 0));
+    await prisma.$executeRaw`UPDATE "Gimnasio" SET "suscripcionVence" = ${nueva} WHERE "id" = ${id}`;
+    res.json({ ok: true, vence: nueva.toISOString() });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'No se pudo renovar la suscripción' });
+  }
+});
+
 export default router;

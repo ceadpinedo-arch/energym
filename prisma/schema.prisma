@@ -58,6 +58,8 @@ puertaFisica Boolean @default(false)
   mpUserId String?
   mpExpira DateTime?
   spotifyUrl String?
+  suscripcionPrecio Float?
+  suscripcionVence DateTime?
 }
 
 model Usuario {

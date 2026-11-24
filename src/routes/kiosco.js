@@ -121,7 +121,7 @@ router.post('/checkin', async (req, res) => {
   try {
     const g = await prisma.gimnasio.findUnique({ where: { kioscoToken: token } });
     if (!g) return res.status(403).json({ permitido: false, motivo: 'Este enlace ya no es v\u00e1lido. Pedile uno nuevo al gimnasio.' });
-    const u = await prisma.usuario.findFirst({ where: { dni: dni, gimnasioId: g.id, rol: 'SOCIO' } });
+    const u = await prisma.usuario.findFirst({ where: { dni: dni, gimnasioId: g.id, rol: { in: ['SOCIO', 'ADMIN'] } } });
     if (!u) return res.json({ permitido: false, motivo: 'No encontramos ese DNI en este gimnasio.' });
     const nombre = String(u.nombre || '').trim().split(' ')[0];
     if (u.estadoPago !== 'AL_DIA' || (u.vencimiento && u.vencimiento.getTime() < Date.now())) return res.json({ permitido: false, motivo: 'Cuota vencida', nombre: nombre, vencimiento: u.vencimiento ? u.vencimiento.toISOString() : null });
