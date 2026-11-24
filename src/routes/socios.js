@@ -49,6 +49,7 @@ router.post('/', requireAuth, requireAdmin, async (req, res) => {
   if (existente) return res.status(409).json({ error: 'Ya existe un socio con ese DNI' });
 
   const adminAlta = await prisma.usuario.findUnique({ where: { id: req.usuario.id }, select: { gimnasioId: true } });
+  if (!adminAlta || !adminAlta.gimnasioId) return res.status(403).json({ error: 'Tu cuenta no tiene gimnasio asignado' });
   const socio = await prisma.usuario.create({
     data: { dni, nombre, email, telefono, passwordHash, rol: 'SOCIO', gimnasioId: adminAlta?.gimnasioId || null },
   });
@@ -169,6 +170,7 @@ router.post('/importar', requireAuth, requireAdmin, async (req, res) => {
   try {
     const admin = await prisma.usuario.findUnique({ where: { id: req.usuario.id }, select: { gimnasioId: true } });
     const gimnasioId = admin?.gimnasioId || null;
+	if (!gimnasioId) return res.status(403).json({ error: 'Tu cuenta no tiene gimnasio asignado' });
 
     const errores = [];
     const validas = [];

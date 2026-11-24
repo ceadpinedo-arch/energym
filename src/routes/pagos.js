@@ -169,6 +169,9 @@ const fechaAR = (d = new Date()) => d.toLocaleDateString('en-CA', { timeZone: ZO
 const inicioMesAR = (anio, mes) => new Date(anio + '-' + String(mes).padStart(2, '0') + '-01T00:00:00-03:00');
 
 // Admin: resumen del gimnasio (tarjetas, vencimientos, asistencia y cobros)
+// Dias desde el vencimiento hasta que un socio pasa de moroso a inactivo
+const DIAS_MOROSO = 30;
+
 router.get('/resumen', requireAuth, requireAdmin, async (req, res) => {
   await marcarVencidos();
   try {
@@ -185,13 +188,14 @@ router.get('/resumen', requireAuth, requireAdmin, async (req, res) => {
     const dias = Array.from({ length: 7 }, (_, i) => fechaAR(new Date(ahora.getTime() - (6 - i) * 86400000)));
     const en7 = new Date(ahora.getTime() + 7 * 86400000);
     const socio = { ...delGimnasio, rol: 'SOCIO' };
+	const corte = new Date(ahora.getTime() - DIAS_MOROSO * 86400000);
 
     const [pagosMes, pagosPrev, sociosActivos, vencidos, nuevosMes, entradasHoy,
       porVencer, vencidosLista, asistSemana, porMetodo, ultimosPagos] = await Promise.all([
       prisma.pago.aggregate({ where: { ...pagoWhere, pagadoEn: { gte: inicioMes } }, _sum: { monto: true }, _count: { _all: true } }),
       prisma.pago.aggregate({ where: { ...pagoWhere, pagadoEn: { gte: inicioMesPrev, lt: inicioMes } }, _sum: { monto: true } }),
-      prisma.usuario.count({ where: socio }),
-      prisma.usuario.count({ where: { ...socio, estadoPago: 'VENCIDO' } }),
+      prisma.usuario.count({ where: { ...socio, estadoPago: { not: 'VENCIDO' } } }),
+      prisma.usuario.count({ where: { ...socio, estadoPago: 'VENCIDO', vencimiento: { gte: corte } } }),
       prisma.usuario.count({ where: { ...socio, creadoEn: { gte: inicioMes } } }),
       prisma.asistencia.count({ where: { dia: hoy, usuario: delGimnasio } }),
       prisma.usuario.findMany({
@@ -200,8 +204,8 @@ router.get('/resumen', requireAuth, requireAdmin, async (req, res) => {
         select: { id: true, nombre: true, dni: true, vencimiento: true },
       }),
       prisma.usuario.findMany({
-        where: { ...socio, estadoPago: 'VENCIDO' },
-        orderBy: { vencimiento: 'asc' }, take: 10,
+        where: { ...socio, estadoPago: 'VENCIDO', vencimiento: { gte: corte } },
+        orderBy: { vencimiento: 'desc' }, take: 10,
         select: { id: true, nombre: true, dni: true, vencimiento: true },
       }),
       prisma.asistencia.groupBy({ by: ['dia'], where: { dia: { gte: dias[0] }, usuario: delGimnasio }, _count: { _all: true } }),
@@ -212,12 +216,13 @@ router.get('/resumen', requireAuth, requireAdmin, async (req, res) => {
       }),
     ]);
 
-    const conteoPorDia = Object.fromEntries(asistSemana.map((a) => [a.dia, a._count._all]));
+    const inactivos = await prisma.usuario.count({ where: { ...socio, estadoPago: 'VENCIDO', OR: [{ vencimiento: null }, { vencimiento: { lt: corte } }] } });
+	const conteoPorDia = Object.fromEntries(asistSemana.map((a) => [a.dia, a._count._all]));
     res.json({
       totalMes: pagosMes._sum.monto || 0,
       cantidadPagos: pagosMes._count._all,
       totalMesAnterior: pagosPrev._sum.monto || 0,
-      sociosActivos, vencidos, nuevosMes, entradasHoy,
+      sociosActivos, vencidos, inactivos, nuevosMes, entradasHoy,
       porVencer, vencidosLista,
       asistenciaSemana: dias.map((dia) => ({ dia, cantidad: conteoPorDia[dia] || 0 })),
       porMetodo: porMetodo.map((m) => ({ metodo: m.metodo, total: m._sum.monto || 0, cantidad: m._count._all })),
@@ -260,7 +265,7 @@ router.get('/morosos', requireAuth, requireAdmin, async (req, res) => {
     const gimnasioId = admin?.gimnasioId || '__sin_gimnasio__';
     const [socios, gimnasio] = await Promise.all([
       prisma.usuario.findMany({
-        where: { rol: 'SOCIO', estadoPago: 'VENCIDO', ...(gimnasioId ? { gimnasioId } : {}) },
+        where: { rol: 'SOCIO', estadoPago: 'VENCIDO', vencimiento: { gte: new Date(Date.now() - DIAS_MOROSO * 86400000) }, ...(gimnasioId ? { gimnasioId } : {}) },
         orderBy: { vencimiento: 'asc' },
         select: { id: true, nombre: true, dni: true, telefono: true, vencimiento: true, plan: { select: { nombre: true, precio: true, meses: true } } },
       }),
@@ -288,6 +293,25 @@ router.get('/al-dia', requireAuth, requireAdmin, async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Error al obtener los socios al dia' });
+  }
+});
+
+// Admin: socios inactivos (vencidos hace mas de DIAS_MOROSO dias o sin fecha)
+router.get('/inactivos', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const admin = await prisma.usuario.findUnique({ where: { id: req.usuario.id }, select: { gimnasioId: true } });
+    const gimnasioId = admin ? admin.gimnasioId : null;
+    if (!gimnasioId) return res.json({ socios: [] });
+    const corte = new Date(Date.now() - DIAS_MOROSO * 86400000);
+    const socios = await prisma.usuario.findMany({
+      where: { rol: 'SOCIO', estadoPago: 'VENCIDO', gimnasioId: gimnasioId, OR: [{ vencimiento: null }, { vencimiento: { lt: corte } }] },
+      select: { id: true, nombre: true, dni: true, vencimiento: true },
+    });
+    socios.sort((a, b) => (b.vencimiento ? new Date(b.vencimiento).getTime() : 0) - (a.vencimiento ? new Date(a.vencimiento).getTime() : 0));
+    res.json({ socios });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al obtener los inactivos' });
   }
 });
 
