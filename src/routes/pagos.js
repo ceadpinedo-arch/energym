@@ -173,7 +173,7 @@ router.get('/resumen', requireAuth, requireAdmin, async (req, res) => {
   await marcarVencidos();
   try {
     const admin = await prisma.usuario.findUnique({ where: { id: req.usuario.id }, select: { gimnasioId: true } });
-    const gimnasioId = admin?.gimnasioId || null;
+    const gimnasioId = admin?.gimnasioId || '__sin_gimnasio__';
     const delGimnasio = gimnasioId ? { gimnasioId } : {};
     const pagoWhere = gimnasioId ? { usuario: { gimnasioId } } : {};
 
@@ -233,7 +233,7 @@ router.get('/resumen', requireAuth, requireAdmin, async (req, res) => {
 router.get('/historial', requireAuth, requireAdmin, async (req, res) => {
   try {
     const admin = await prisma.usuario.findUnique({ where: { id: req.usuario.id }, select: { gimnasioId: true } });
-    const gimnasioId = admin?.gimnasioId || null;
+    const gimnasioId = admin?.gimnasioId || '__sin_gimnasio__';
     const pedido = typeof req.query.mes === 'string' ? req.query.mes : '';
     const mes = /^\d{4}-(0[1-9]|1[0-2])$/.test(pedido) ? pedido : fechaAR().slice(0, 7);
     const [anio, m] = mes.split('-').map(Number);
@@ -257,7 +257,7 @@ router.get('/historial', requireAuth, requireAdmin, async (req, res) => {
 router.get('/morosos', requireAuth, requireAdmin, async (req, res) => {
   try {
     const admin = await prisma.usuario.findUnique({ where: { id: req.usuario.id }, select: { gimnasioId: true } });
-    const gimnasioId = admin?.gimnasioId || null;
+    const gimnasioId = admin?.gimnasioId || '__sin_gimnasio__';
     const [socios, gimnasio] = await Promise.all([
       prisma.usuario.findMany({
         where: { rol: 'SOCIO', estadoPago: 'VENCIDO', ...(gimnasioId ? { gimnasioId } : {}) },
