@@ -315,4 +315,52 @@ router.get('/inactivos', requireAuth, requireAdmin, async (req, res) => {
   }
 });
 
+// Admin: listas de socios para los envios por WhatsApp (nuevos, por vencer, morosos, inactivos, activos)
+router.get('/destinatarios', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const admin = await prisma.usuario.findUnique({ where: { id: req.usuario.id }, select: { gimnasioId: true } });
+    const gimnasioId = admin ? admin.gimnasioId : null;
+    const vacio = { gimnasio: null, nuevos: [], pendientes: [], morosos: [], inactivos: [], activos: [] };
+    if (!gimnasioId) return res.json(vacio);
+    const DIA = 86400000;
+    const CORTE = 30;
+    const ahora = Date.now();
+    const [gym, socios] = await Promise.all([
+      prisma.gimnasio.findUnique({ where: { id: gimnasioId }, select: { nombre: true, cuota: true } }),
+      prisma.usuario.findMany({
+        where: { rol: 'SOCIO', gimnasioId: gimnasioId },
+        select: { id: true, nombre: true, telefono: true, vencimiento: true, creadoEn: true, estadoPago: true },
+      }),
+    ]);
+    const item = (s, dias) => ({
+      id: s.id,
+      nombre: s.nombre,
+      telefono: s.telefono || '',
+      vence: s.vencimiento ? new Date(s.vencimiento).toISOString() : null,
+      dias: dias,
+    });
+    const out = { gimnasio: gym, nuevos: [], pendientes: [], morosos: [], inactivos: [], activos: [] };
+    socios.forEach((s) => {
+      const venc = s.vencimiento ? new Date(s.vencimiento).getTime() : null;
+      const vencido = s.estadoPago === 'VENCIDO';
+      const creado = s.creadoEn ? new Date(s.creadoEn).getTime() : null;
+      if (creado !== null && creado >= ahora - CORTE * DIA) out.nuevos.push(item(s, Math.max(0, Math.floor((ahora - creado) / DIA))));
+      if (!vencido) {
+        out.activos.push(item(s, null));
+        if (venc !== null && venc >= ahora && venc <= ahora + 15 * DIA) out.pendientes.push(item(s, Math.ceil((venc - ahora) / DIA)));
+      } else if (venc !== null && venc >= ahora - CORTE * DIA) {
+        out.morosos.push(item(s, Math.max(0, Math.floor((ahora - venc) / DIA))));
+      } else {
+        out.inactivos.push(item(s, venc !== null ? Math.max(0, Math.floor((ahora - venc) / DIA)) : null));
+      }
+    });
+    out.pendientes.sort((a, b) => a.dias - b.dias);
+    out.morosos.sort((a, b) => a.dias - b.dias);
+    res.json(out);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'No se pudieron armar las listas' });
+  }
+});
+
 export default router;
