@@ -133,4 +133,51 @@ router.patch('/gimnasios/:id', requireAuth, requireAdmin, requireSuper, async (r
   }
 });
 
+const nuevoAdminSchema = z.object({
+  nombre: z.string().min(1).max(80),
+  dni: z.string().regex(/^[0-9]{6,9}$/),
+  password: z.string().min(8).max(100),
+});
+
+// Dueño: agregar un administrador a un gimnasio
+router.post('/gimnasios/:id/admins', requireAuth, requireAdmin, requireSuper, async (req, res) => {
+  const p = nuevoAdminSchema.safeParse(req.body);
+  if (!p.success) return res.status(400).json({ error: 'Datos inválidos: el DNI son 6 a 9 números y la contraseña al menos 8 caracteres.' });
+  try {
+    const g = await prisma.gimnasio.findUnique({ where: { id: req.params.id }, select: { id: true } });
+    if (!g) return res.status(404).json({ error: 'Gimnasio no encontrado' });
+    const yaExiste = await prisma.usuario.findUnique({ where: { dni: p.data.dni } });
+    if (yaExiste) return res.status(409).json({ error: 'Ya existe un usuario con ese DNI' });
+    const hash = await bcrypt.hash(p.data.password, 10);
+    const a = await prisma.usuario.create({
+      data: { dni: p.data.dni, nombre: p.data.nombre, passwordHash: hash, rol: 'ADMIN', gimnasioId: g.id },
+    });
+    res.json({ id: a.id, nombre: a.nombre, dni: a.dni });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'No se pudo agregar el administrador' });
+  }
+});
+
+// Dueño: quitar un administrador de un gimnasio (el gimnasio siempre conserva al menos uno)
+router.post('/gimnasios/:id/admins/:adminId/quitar', requireAuth, requireAdmin, requireSuper, async (req, res) => {
+  try {
+    if (req.params.adminId === req.usuario.id) return res.status(400).json({ error: 'No podés quitar tu propia cuenta' });
+    const admins = await prisma.usuario.findMany({ where: { rol: 'ADMIN', gimnasioId: req.params.id }, select: { id: true } });
+    const objetivo = admins.filter((x) => x.id === req.params.adminId)[0];
+    if (!objetivo) return res.status(404).json({ error: 'Ese administrador no pertenece a este gimnasio' });
+    if (admins.length <= 1) return res.status(409).json({ error: 'El gimnasio necesita al menos un administrador. Agregá otro antes de quitar este.' });
+    try {
+      await prisma.usuario.delete({ where: { id: objetivo.id } });
+      return res.json({ ok: true, accion: 'eliminado' });
+    } catch (e) {
+      await prisma.usuario.update({ where: { id: objetivo.id }, data: { rol: 'SOCIO' } });
+      return res.json({ ok: true, accion: 'pasado a socio' });
+    }
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'No se pudo quitar el administrador' });
+  }
+});
+
 export default router;
