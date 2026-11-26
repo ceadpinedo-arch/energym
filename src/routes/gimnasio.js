@@ -95,4 +95,43 @@ router.patch('/me', requireAuth, requireAdmin, async (req, res) => {
   res.json(publico(gimnasio, true));
 });
 
+// Socio: ver y guardar su propio WhatsApp (se refleja en el panel del administrador)
+function normalizarTelefonoAR(t) {
+  let n = String(t || '').replace(/\D/g, '');
+  if (n.indexOf('00') === 0) n = n.slice(2);
+  if (n.indexOf('549') === 0) n = n.slice(3);
+  else if (n.indexOf('54') === 0) n = n.slice(2);
+  while (n.indexOf('0') === 0) n = n.slice(1);
+  if (n.length === 11 && n.indexOf('9') === 0) n = n.slice(1);
+  if (n.length === 12) {
+    const areas = [4, 3, 2];
+    for (let i = 0; i < areas.length; i++) {
+      if (n.slice(areas[i], areas[i] + 2) === '15') { n = n.slice(0, areas[i]) + n.slice(areas[i] + 2); break; }
+    }
+  }
+  return n.length === 10 ? n : '';
+}
+
+router.get('/mi-telefono', requireAuth, async (req, res) => {
+  try {
+    const u = await prisma.usuario.findUnique({ where: { id: req.usuario.id }, select: { telefono: true, rol: true } });
+    res.json({ telefono: u && u.telefono ? u.telefono : '', rol: u ? u.rol : null });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'No se pudo obtener el teléfono' });
+  }
+});
+
+router.patch('/mi-telefono', requireAuth, async (req, res) => {
+  const tel = normalizarTelefonoAR(req.body && req.body.telefono);
+  if (!tel) return res.status(400).json({ error: 'Escribí tu número con código de área, sin 0 ni 15. Ejemplo: 3731456789' });
+  try {
+    await prisma.usuario.update({ where: { id: req.usuario.id }, data: { telefono: tel } });
+    res.json({ ok: true, telefono: tel });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'No se pudo guardar el teléfono' });
+  }
+});
+
 export default router;
